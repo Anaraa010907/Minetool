@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import Icon from "./Icons.jsx";
 
 // Утсан дээр доороос гарч ирэх хуудас, компьютер дээр голд гарах цонх.
-export default function Sheet({ title, onClose, children }) {
+// footer нь доор тогтмол үлдэнэ.
+export default function Sheet({ title, onClose, children, footer }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -19,11 +20,12 @@ export default function Sheet({ title, onClose, children }) {
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Хаах">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Хаах">
             <Icon name="x" size={20} />
           </button>
         </div>
         <div className="sheet-body">{children}</div>
+        {footer && <div className="sheet-foot">{footer}</div>}
       </div>
     </div>
   );

@@ -1,13 +1,21 @@
 import { localAdapter } from "./localAdapter.js";
+import { deletePhoto } from "./photos.js";
 
 // Дараа нь уурхайн database-тай холбохдоо зөвхөн энэ мөрийг солино.
 const adapter = localAdapter;
+
+// Толгой хэсгийн холболтын заагч болон мэдэгдэлд ашиглана.
+export const connection = {
+  mode: "local", // "local" | "remote"
+  label: "Төхөөрөмж дээр",
+  note: "Өгөгдөл энэ төхөөрөмжийн хөтөчид хадгалагдана.",
+};
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 
 export const STATUS = {
-  AVAILABLE: "available", // агуулахад
+  AVAILABLE: "available", // бэлэн
   ISSUED: "issued", // олгосон
   REPAIR: "repair", // засварт
   RETIRED: "retired", // актласан
@@ -23,7 +31,26 @@ export const db = {
       createdAt: now(),
       ...t,
     }),
-  removeTool: (id) => adapter.remove("tools", id),
+  async removeTool(id) {
+    await adapter.remove("tools", id);
+    await deletePhoto(id).catch(() => {});
+  },
+
+  // Бүртгэлээс төлөв гараар солих (олгосон багажид хамаарахгүй).
+  async changeStatus(toolId, status) {
+    const tool = await adapter.get("tools", toolId);
+    if (!tool || tool.status === status) return;
+    if (tool.status === STATUS.ISSUED) throw new Error("Олгосон багажийг эхлээд буцаан авна уу");
+    if (status === STATUS.REPAIR) {
+      await db.startRepair(toolId, "Бүртгэлээс засварт шилжүүлсэн");
+      return;
+    }
+    if (tool.status === STATUS.REPAIR) {
+      const open = (await adapter.list("repairs")).find((r) => r.toolId === toolId && !r.finishedAt);
+      if (open) await adapter.save("repairs", { ...open, finishedAt: now(), result: "Бүртгэлээс төлөв солисон", cost: null });
+    }
+    await adapter.save("tools", { ...tool, status, holderId: null });
+  },
 
   // ---- Ажилчид ----
   workers: () => adapter.list("workers"),

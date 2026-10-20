@@ -1,28 +1,23 @@
 import { useState } from "react";
 import { db } from "../db/index.js";
-import { fmtDate } from "../hooks.js";
+import { ago } from "../hooks.js";
 import BarcodeScanner from "../components/BarcodeScanner.jsx";
 import Icon from "../components/Icons.jsx";
-import { Avatar, PageHead, Empty } from "../components/Bits.jsx";
+import { Avatar, PageTitle, SelectField, ToolThumb, Empty } from "../components/Bits.jsx";
 
-export default function Issue({ tools, workers, loans, reload }) {
-  const [mode, setMode] = useState("issue"); // issue | return
+// mode="issue": Багаж олгох, mode="return": Багаж буцаах
+export default function Issue({ mode, tools, workers, loans, reload, go }) {
+  const isIssue = mode === "issue";
   const [worker, setWorker] = useState(null);
   const [result, setResult] = useState(null); // {type: ok|error, text}
   const [condition, setCondition] = useState("good");
   const [note, setNote] = useState("");
 
+  const tool = (id) => tools.find((t) => t.id === id);
   const wn = (id) => workers.find((w) => w.id === id)?.name || "—";
-  const tn = (id) => tools.find((t) => t.id === id)?.name || "—";
 
   const open = loans.filter((l) => !l.returnedAt).sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
-  const history = loans.filter((l) => l.returnedAt).sort((a, b) => b.returnedAt.localeCompare(a.returnedAt)).slice(0, 10);
   const held = worker ? open.filter((l) => l.workerId === worker.id) : [];
-
-  const switchMode = (m) => {
-    setMode(m);
-    setResult(null);
-  };
 
   const onWorkerScan = (badge) => {
     const w = workers.find((x) => x.badge === badge);
@@ -31,25 +26,25 @@ export default function Issue({ tools, workers, loans, reload }) {
       setResult(null);
     } else {
       setWorker(null);
-      setResult({ type: "error", text: `"${badge}" үнэмлэхтэй ажилтан бүртгэлгүй байна. "Ажилчид" хэсэгт нэмнэ үү.` });
+      setResult({ type: "error", text: `"${badge}" үнэмлэхтэй ажилтан бүртгэлгүй байна. Бусад → Ажилчид хэсэгт нэмнэ үү.` });
     }
   };
 
   const onToolScan = async (code) => {
-    const tool = tools.find((t) => t.code === code);
-    if (!tool) return setResult({ type: "error", text: `"${code}" кодтой багаж бүртгэлгүй байна.` });
+    const t = tools.find((x) => x.code === code);
+    if (!t) return setResult({ type: "error", text: `"${code}" кодтой багаж бүртгэлгүй байна.` });
     try {
-      if (mode === "issue") {
+      if (isIssue) {
         if (!worker) return setResult({ type: "error", text: "Эхлээд ажилтны үнэмлэхийг уншуулна уу." });
-        await db.issueTool(tool.id, worker.id, note);
-        setResult({ type: "ok", text: `${tool.name} олгогдлоо → ${worker.name}` });
+        await db.issueTool(t.id, worker.id, note);
+        setResult({ type: "ok", text: `${t.name} олгогдлоо: ${worker.name}` });
         setNote("");
       } else {
-        if (tool.status !== "issued") return setResult({ type: "error", text: `${tool.name} олгогдоогүй байна.` });
-        await db.returnTool(tool.id, condition);
+        if (t.status !== "issued") return setResult({ type: "error", text: `${t.name} олгогдоогүй байна.` });
+        await db.returnTool(t.id, condition);
         setResult({
           type: "ok",
-          text: condition === "damaged" ? `${tool.name} хүлээн авлаа. Засварт шилжүүллээ.` : `${tool.name} хүлээн авлаа`,
+          text: condition === "damaged" ? `${t.name} хүлээн авлаа. Засварт шилжүүллээ.` : `${t.name} хүлээн авлаа.`,
         });
       }
       reload();
@@ -60,54 +55,51 @@ export default function Issue({ tools, workers, loans, reload }) {
 
   return (
     <>
-      <PageHead title="Олгох / Авах" sub="Үнэмлэх болон багажны barcode-г уншуулна" />
-
-      <div className="segment" role="tablist">
-        <button role="tab" aria-selected={mode === "issue"} className={mode === "issue" ? "on" : ""} onClick={() => switchMode("issue")}>Олгох</button>
-        <button role="tab" aria-selected={mode === "return"} className={mode === "return" ? "on" : ""} onClick={() => switchMode("return")}>Хүлээн авах</button>
-      </div>
+      <PageTitle
+        eyebrow="Уурхайн агуулах"
+        title={isIssue ? "Багаж олгох" : "Багаж буцаах"}
+        sub={isIssue ? "Ажилтны үнэмлэх болон багажны barcode-г уншуулна" : "Буцаж ирсэн багажны barcode-г уншуулна"}
+      />
 
       {result && (
         <div className={"result " + result.type} role="status">
-          <span className="ico"><Icon name={result.type === "ok" ? "check" : "alert"} size={26} /></span>
+          <Icon name={result.type === "ok" ? "check" : "alert"} size={26} />
           {result.text}
         </div>
       )}
 
-      {mode === "issue" && (
-        <div className="panel step">
+      {isIssue && (
+        <section className="card step">
           <div className="step-head">
-            <span className={"step-no" + (worker ? " done" : "")}>{worker ? <Icon name="check" size={15} /> : 1}</span>
+            <span className={"step-no" + (worker ? " done" : "")}>{worker ? <Icon name="check" size={16} /> : 1}</span>
             <h3>Ажилтан</h3>
           </div>
           {worker ? (
             <>
               <div className="holder">
-                <Avatar name={worker.name} />
+                <Avatar name={worker.name} size={46} />
                 <div className="grow">
-                  <div className="row-name">{worker.name}</div>
-                  <div className="row-sub">{worker.position || "Албан тушаал бичигдээгүй"}</div>
+                  <div className="cell-name">{worker.name}</div>
+                  <div className="cell-sub">{worker.position || "Албан тушаал бичигдээгүй"}, {worker.badge}</div>
                 </div>
-                <button className="btn small quiet" onClick={() => { setWorker(null); setResult(null); }}>Солих</button>
+                <button className="btn small" onClick={() => { setWorker(null); setResult(null); }}>Солих</button>
               </div>
               {held.length > 0 && (
-                <p className="row-sub" style={{ whiteSpace: "normal", marginTop: 10 }}>
-                  Одоо авсан байгаа: {held.map((l) => tn(l.toolId)).join(", ")}
-                </p>
+                <p className="help">Одоо авсан байгаа: {held.map((l) => tool(l.toolId)?.name).filter(Boolean).join(", ")}</p>
               )}
             </>
           ) : (
             <BarcodeScanner placeholder="Үнэмлэхний barcode" onScan={onWorkerScan} />
           )}
-        </div>
+        </section>
       )}
 
-      <div className="panel step">
+      <section className="card step">
         <div className="step-head">
-          <span className="step-no">{mode === "issue" ? 2 : 1}</span>
+          <span className="step-no">{isIssue ? 2 : 1}</span>
           <h3>Багаж</h3>
         </div>
-        {mode === "issue" ? (
+        {isIssue ? (
           <div className="field">
             <label htmlFor="i-note">Тэмдэглэл</label>
             <input id="i-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Жишээ: 3-р уурхай, шөнийн ээлж" />
@@ -115,48 +107,37 @@ export default function Issue({ tools, workers, loans, reload }) {
         ) : (
           <div className="field">
             <label htmlFor="i-cond">Буцаах үеийн төлөв</label>
-            <select id="i-cond" value={condition} onChange={(e) => setCondition(e.target.value)}>
+            <SelectField id="i-cond" value={condition} onChange={(e) => setCondition(e.target.value)}>
               <option value="good">Хэвийн</option>
               <option value="damaged">Эвдэрсэн, засварт шилжүүлнэ</option>
-            </select>
+            </SelectField>
           </div>
         )}
         <BarcodeScanner placeholder="Багажны код / barcode" onScan={onToolScan} />
-      </div>
+      </section>
 
-      <div className="panel">
-        <h3 className="panel-title">Одоо олгогдсон ({open.length})</h3>
+      <section className="card">
+        <h2 className="card-title">Одоо олгогдсон ({open.length})</h2>
         {open.length === 0 ? (
           <Empty title="Олгогдсон багаж алга" hint="Олгосон багаж энд харагдана." />
         ) : (
-          open.map((l) => (
-            <div className="row-item plain" key={l.id}>
-              <Avatar name={wn(l.workerId)} />
-              <div className="grow">
-                <div className="row-name">{tn(l.toolId)}</div>
-                <div className="row-sub">{wn(l.workerId)}, {fmtDate(l.issuedAt)}</div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {history.length > 0 && (
-        <div className="panel">
-          <h3 className="panel-title">Сүүлд буцаасан</h3>
-          {history.map((l) => (
-            <div className="row-item plain" key={l.id}>
-              <div className="grow">
-                <div className="row-name">{tn(l.toolId)}</div>
-                <div className="row-sub">
-                  {wn(l.workerId)}, {fmtDate(l.returnedAt)}
-                  {l.returnCondition === "damaged" ? ", эвдэрсэн" : ""}
+          open.map((l) => {
+            const t = tool(l.toolId);
+            return (
+              <div className="list-row" key={l.id}>
+                {t && <ToolThumb tool={t} />}
+                <div className="grow">
+                  <div className="cell-name">{t?.name || "—"}</div>
+                  <div className="cell-sub">{wn(l.workerId)}, {ago(l.issuedAt)}</div>
                 </div>
+                {!isIssue && t && (
+                  <button className="btn small" onClick={() => onToolScan(t.code)}>Хүлээн авах</button>
+                )}
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            );
+          })
+        )}
+      </section>
     </>
   );
 }

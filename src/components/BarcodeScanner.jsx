@@ -84,19 +84,19 @@ export default function BarcodeScanner({ onScan, placeholder = "Barcode / ID б�
         {supported && (
           <button
             type="button"
-            className={"btn " + (cameraOn ? "dark" : "primary")}
+            className={"btn " + (cameraOn ? "primary" : "accent")}
             onClick={() => (cameraOn ? stop() : (setError(""), setCameraOn(true)))}
           >
             <Icon name={cameraOn ? "x" : "scan"} size={20} />
             {cameraOn ? "Хаах" : "Скан"}
           </button>
         )}
-        <button type="submit" className="btn dark" aria-label="Оруулах">
+        <button type="submit" className="btn primary" aria-label="Оруулах">
           <Icon name="check" size={20} />
         </button>
       </form>
       {!supported && (
-        <p className="msg" style={{ color: "var(--ink-2)" }}>
+        <p className="msg" style={{ color: "var(--muted)" }}>
           Камераар унших боломжгүй хөтөч байна. Кодоо бичих эсвэл USB скэнэр ашиглана уу.
         </p>
       )}

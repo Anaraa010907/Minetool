@@ -3,11 +3,11 @@ import { db } from "../db/index.js";
 import BarcodeScanner from "../components/BarcodeScanner.jsx";
 import Sheet from "../components/Sheet.jsx";
 import Icon from "../components/Icons.jsx";
-import { Avatar, PageHead, Empty } from "../components/Bits.jsx";
+import { Avatar, PageTitle, Empty } from "../components/Bits.jsx";
 
 const emptyForm = { name: "", position: "", badge: "" };
 
-export default function Workers({ workers, tools, reload, notify }) {
+export default function Workers({ workers, tools, reload, notify, onBack }) {
   const [form, setForm] = useState(null);
   const [err, setErr] = useState("");
 
@@ -40,17 +40,18 @@ export default function Workers({ workers, tools, reload, notify }) {
 
   return (
     <>
-      <PageHead
+      <PageTitle
         title="Ажилчид"
         sub={`${workers.length} ажилтан бүртгэлтэй`}
+        onBack={onBack}
         action={
           <button className="btn primary" onClick={() => openForm()}>
-            <Icon name="plus" size={20} /> Нэмэх
+            <Icon name="plus" size={20} /> Ажилтан нэмэх
           </button>
         }
       />
 
-      <div className="panel">
+      <section className="card">
         {workers.length === 0 ? (
           <Empty title="Ажилтан бүртгэгдээгүй байна" hint="Үнэмлэхний barcode-той ажилтнаа нэмбэл багаж олгох боломжтой болно.">
             <button className="btn primary" onClick={() => openForm()}>
@@ -59,26 +60,35 @@ export default function Workers({ workers, tools, reload, notify }) {
           </Empty>
         ) : (
           workers.map((w) => (
-            <button key={w.id} className="row-item" onClick={() => openForm(w)}>
-              <Avatar name={w.name} />
+            <button key={w.id} className="list-row" onClick={() => openForm(w)}>
+              <Avatar name={w.name} size={44} />
               <div className="grow">
-                <div className="row-name">{w.name}</div>
-                <div className="row-sub">{w.position || "Албан тушаал бичигдээгүй"}</div>
+                <div className="cell-name">{w.name}</div>
+                <div className="cell-sub">{w.position || "Албан тушаал бичигдээгүй"}, {w.badge}</div>
               </div>
-              <div className="row-sub" style={{ textAlign: "right" }}>
-                {heldBy(w.id) ? `${heldBy(w.id)} багаж` : "Багажгүй"}
-              </div>
-              <span className="chev"><Icon name="chevron" size={18} /></span>
+              <span className="cell-sub nowrap">{heldBy(w.id) ? `${heldBy(w.id)} багаж` : "Багажгүй"}</span>
+              <span className="chev"><Icon name="right" size={18} /></span>
             </button>
           ))
         )}
-      </div>
+      </section>
 
       {form && (
-        <Sheet title={form.id ? "Ажилтан засах" : "Шинэ ажилтан"} onClose={() => setForm(null)}>
-          <form onSubmit={save}>
+        <Sheet
+          title={form.id ? "Ажилтан засах" : "Шинэ ажилтан"}
+          onClose={() => setForm(null)}
+          footer={
+            <>
+              <button type="button" className="btn" onClick={() => setForm(null)}>Болих</button>
+              <button type="submit" form="worker-form" className="btn primary">
+                <Icon name="check" size={20} /> Хадгалах
+              </button>
+            </>
+          }
+        >
+          <form id="worker-form" onSubmit={save}>
             <div className="field">
-              <label htmlFor="w-name">Овог нэр</label>
+              <label htmlFor="w-name">Овог нэр <span className="req">*</span></label>
               <input id="w-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
             </div>
             <div className="field">
@@ -86,18 +96,14 @@ export default function Workers({ workers, tools, reload, notify }) {
               <input id="w-pos" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
             </div>
             <div className="field">
-              <label>Үнэмлэхний barcode</label>
+              <div className="field-label">Үнэмлэхний barcode <span className="req">*</span></div>
               <BarcodeScanner placeholder="Barcode бичих эсвэл скан хийх" onScan={(v) => setForm({ ...form, badge: v })} />
               {form.badge && <p className="msg ok"><Icon name="check" size={18} /> Barcode: {form.badge}</p>}
             </div>
             {err && <p className="msg error"><Icon name="alert" size={18} /> {err}</p>}
-            <div className="form-actions">
-              <button type="button" className="btn quiet" onClick={() => setForm(null)}>Болих</button>
-              <button className="btn primary">Хадгалах</button>
-            </div>
             {form.id && (
-              <button type="button" className="btn danger block" style={{ marginTop: 10 }} onClick={() => remove(form)}>
-                Бүртгэлээс устгах
+              <button type="button" className="btn danger block" onClick={() => remove(form)}>
+                <Icon name="trash" size={20} /> Бүртгэлээс устгах
               </button>
             )}
           </form>
