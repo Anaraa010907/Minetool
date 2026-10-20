@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Icon from "./Icons.jsx";
 
 const FORMATS = ["code_128", "code_39", "ean_13", "ean_8", "itf", "codabar", "upc_a", "qr_code"];
 
@@ -71,30 +72,40 @@ export default function BarcodeScanner({ onScan, placeholder = "Barcode / ID б�
 
   return (
     <div className="scanner">
-      <form onSubmit={submit} className="row">
+      <form onSubmit={submit} className="scan-row">
         <input
           value={manual}
           onChange={(e) => setManual(e.target.value)}
           placeholder={placeholder}
           inputMode="text"
           autoComplete="off"
+          aria-label={placeholder}
         />
-        <button type="submit" className="btn">OK</button>
         {supported && (
           <button
             type="button"
-            className="btn gold"
+            className={"btn " + (cameraOn ? "dark" : "primary")}
             onClick={() => (cameraOn ? stop() : (setError(""), setCameraOn(true)))}
           >
-            {cameraOn ? "Хаах" : "📷 Скан"}
+            <Icon name={cameraOn ? "x" : "scan"} size={20} />
+            {cameraOn ? "Хаах" : "Скан"}
           </button>
         )}
+        <button type="submit" className="btn dark" aria-label="Оруулах">
+          <Icon name="check" size={20} />
+        </button>
       </form>
       {!supported && (
-        <p className="hint">Энэ хөтөч камераар уншихыг дэмжихгүй. Гараар бичих эсвэл USB скэнэр ашиглана уу.</p>
+        <p className="msg" style={{ color: "var(--ink-2)" }}>
+          Камераар унших боломжгүй хөтөч байна. Кодоо бичих эсвэл USB скэнэр ашиглана уу.
+        </p>
       )}
-      {error && <p className="error">{error}</p>}
-      {cameraOn && <video ref={videoRef} className="video" playsInline muted />}
+      {error && <p className="msg error">{error}</p>}
+      {cameraOn && (
+        <div className="camera">
+          <video ref={videoRef} playsInline muted />
+        </div>
+      )}
     </div>
   );
 }

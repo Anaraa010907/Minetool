@@ -1,28 +1,35 @@
 import { useState } from "react";
 import { db } from "../db/index.js";
-import { fmtDate } from "../hooks.js";
+import { fmtDate, daysSince } from "../hooks.js";
+import Sheet from "../components/Sheet.jsx";
+import Icon from "../components/Icons.jsx";
+import { CodeTag, PageHead, Empty } from "../components/Bits.jsx";
 
-export default function Repairs({ tools, repairs, reload }) {
+export default function Repairs({ tools, repairs, reload, notify }) {
+  const [newOpen, setNewOpen] = useState(false);
   const [toolId, setToolId] = useState("");
   const [desc, setDesc] = useState("");
-  const [finishing, setFinishing] = useState(null);
+  const [finishing, setFinishing] = useState(null); // засварын id
   const [result, setResult] = useState("");
   const [cost, setCost] = useState("");
   const [err, setErr] = useState("");
 
-  const tn = (id) => tools.find((t) => t.id === id)?.name || "—";
+  const tool = (id) => tools.find((t) => t.id === id);
   const eligible = tools.filter((t) => t.status === "available");
-  const active = repairs.filter((r) => !r.finishedAt);
+  const active = repairs.filter((r) => !r.finishedAt).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   const done = repairs.filter((r) => r.finishedAt).sort((a, b) => b.finishedAt.localeCompare(a.finishedAt)).slice(0, 20);
+  const finishingRepair = repairs.find((r) => r.id === finishing);
 
   const start = async (e) => {
     e.preventDefault();
-    setErr("");
-    if (!toolId || !desc.trim()) return setErr("Багаж болон эвдрэлийн тайлбараа бөглөнө үү");
+    if (!toolId || !desc.trim()) return setErr("Багаж сонгоод эвдрэлийн тайлбараа бичнэ үү");
     try {
       await db.startRepair(toolId, desc.trim());
+      setNewOpen(false);
       setToolId("");
       setDesc("");
+      setErr("");
+      notify("Засварт шилжлээ");
       reload();
     } catch (e2) {
       setErr(e2.message);
@@ -35,67 +42,113 @@ export default function Repairs({ tools, repairs, reload }) {
     setFinishing(null);
     setResult("");
     setCost("");
+    notify("Багаж агуулахад буцлаа");
     reload();
   };
 
   return (
     <>
-      <form className="card" onSubmit={start}>
-        <h2>Засварт шилжүүлэх</h2>
-        <label>Багаж (агуулахад байгаа)</label>
-        <select value={toolId} onChange={(e) => setToolId(e.target.value)}>
-          <option value="">— сонгох —</option>
-          {eligible.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.code})</option>)}
-        </select>
-        <label>Эвдрэл / хийх ажил</label>
-        <textarea value={desc} onChange={(e) => setDesc(e.target.value)} />
-        {err && <p className="error">{err}</p>}
-        <button className="btn gold block">Засварт өгөх</button>
-      </form>
+      <PageHead
+        title="Засвар"
+        sub={`${active.length} багаж засварт байна`}
+        action={
+          <button className="btn primary" onClick={() => { setErr(""); setNewOpen(true); }}>
+            <Icon name="plus" size={20} /> Засварт өгөх
+          </button>
+        }
+      />
 
-      <div className="card">
-        <h2>Засварт байгаа ({active.length})</h2>
-        {active.length === 0 && <div className="empty">Засварт багаж алга</div>}
-        {active.map((r) => (
-          <div key={r.id}>
-            <div className="item">
-              <div>
-                <div className="name">{tn(r.toolId)}</div>
-                <div className="sub">{r.description} · {fmtDate(r.startedAt)}</div>
-              </div>
-              <button className="btn green small" onClick={() => setFinishing(r.id)}>Дуусгах</button>
-            </div>
-            {finishing === r.id && (
-              <form onSubmit={finish} style={{ paddingBottom: 10 }}>
-                <label>Хийсэн ажил</label>
-                <input value={result} onChange={(e) => setResult(e.target.value)} />
-                <label>Зардал (₮, заавал биш)</label>
-                <input type="number" inputMode="numeric" value={cost} onChange={(e) => setCost(e.target.value)} />
-                <div className="row" style={{ marginTop: 10 }}>
-                  <button className="btn green">Агуулахад буцаах</button>
-                  <button type="button" className="btn" onClick={() => setFinishing(null)}>Болих</button>
+      <div className="panel">
+        {active.length === 0 ? (
+          <Empty title="Засварт багаж алга" hint="Эвдэрсэн багажийг засварт өгвөл энд хяналтад орно." />
+        ) : (
+          active.map((r) => {
+            const t = tool(r.toolId);
+            const days = daysSince(r.startedAt);
+            return (
+              <div className="row-item plain stripe s-repair" key={r.id}>
+                <div className="grow">
+                  <div className="row-name">{t?.name || "—"}</div>
+                  <div className="row-sub">{r.description}</div>
+                  <div className="row-sub">{days === 0 ? "Өнөөдөр" : `${days} хоног`} засварт</div>
                 </div>
-              </form>
-            )}
-          </div>
-        ))}
+                <div style={{ textAlign: "right", display: "grid", gap: 6, justifyItems: "end" }}>
+                  {t && <CodeTag code={t.code} />}
+                  <button className="btn small primary" onClick={() => setFinishing(r.id)}>Дуусгах</button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
-      <div className="card">
-        <h2>Засварын түүх</h2>
-        {done.length === 0 && <div className="empty">Түүх алга</div>}
-        {done.map((r) => (
-          <div className="item" key={r.id}>
-            <div>
-              <div className="name">{tn(r.toolId)}</div>
-              <div className="sub">
-                {r.description} → {r.result || "—"} · {fmtDate(r.finishedAt)}
-                {r.cost != null ? ` · ${r.cost.toLocaleString("mn-MN")}₮` : ""}
+      {done.length > 0 && (
+        <div className="panel">
+          <h3 className="panel-title">Засварын түүх</h3>
+          {done.map((r) => (
+            <div className="row-item plain" key={r.id}>
+              <div className="grow">
+                <div className="row-name">{tool(r.toolId)?.name || "—"}</div>
+                <div className="row-sub" style={{ whiteSpace: "normal" }}>
+                  {r.description}
+                  {r.result ? `. Хийсэн ажил: ${r.result}` : ""}
+                </div>
+                <div className="row-sub">
+                  {fmtDate(r.finishedAt)}
+                  {r.cost != null ? `, ${r.cost.toLocaleString("mn-MN")}₮` : ""}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {newOpen && (
+        <Sheet title="Засварт өгөх" onClose={() => setNewOpen(false)}>
+          <form onSubmit={start}>
+            <div className="field">
+              <label htmlFor="r-tool">Багаж</label>
+              <select id="r-tool" value={toolId} onChange={(e) => setToolId(e.target.value)}>
+                <option value="">Сонгох</option>
+                {eligible.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.code})</option>)}
+              </select>
+              <p className="help">Зөвхөн агуулахад байгаа багаж харагдана.</p>
+            </div>
+            <div className="field">
+              <label htmlFor="r-desc">Эвдрэл, хийх ажил</label>
+              <textarea id="r-desc" value={desc} onChange={(e) => setDesc(e.target.value)} />
+            </div>
+            {err && <p className="msg error"><Icon name="alert" size={18} /> {err}</p>}
+            <div className="form-actions">
+              <button type="button" className="btn quiet" onClick={() => setNewOpen(false)}>Болих</button>
+              <button className="btn primary">Засварт өгөх</button>
+            </div>
+          </form>
+        </Sheet>
+      )}
+
+      {finishingRepair && (
+        <Sheet title="Засвар дуусгах" onClose={() => setFinishing(null)}>
+          <p className="row-sub" style={{ whiteSpace: "normal", marginBottom: 14 }}>
+            {tool(finishingRepair.toolId)?.name}: {finishingRepair.description}
+          </p>
+          <form onSubmit={finish}>
+            <div className="field">
+              <label htmlFor="f-res">Хийсэн ажил</label>
+              <input id="f-res" value={result} onChange={(e) => setResult(e.target.value)} autoFocus />
+            </div>
+            <div className="field">
+              <label htmlFor="f-cost">Зардал (₮)</label>
+              <input id="f-cost" type="number" inputMode="numeric" min="0" value={cost} onChange={(e) => setCost(e.target.value)} />
+              <p className="help">Заавал биш.</p>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn quiet" onClick={() => setFinishing(null)}>Болих</button>
+              <button className="btn primary">Агуулахад буцаах</button>
+            </div>
+          </form>
+        </Sheet>
+      )}
     </>
   );
 }

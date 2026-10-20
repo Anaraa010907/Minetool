@@ -27,6 +27,8 @@ export function useData() {
 export const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleString("mn-MN", { dateStyle: "short", timeStyle: "short" }) : "—";
 
+export const daysSince = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+
 export const STATUS_LABEL = {
   available: "Агуулахад",
   issued: "Олгосон",
