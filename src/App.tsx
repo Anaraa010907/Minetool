@@ -201,7 +201,6 @@ function App() {
   const [issueCategory, setIssueCategory] = useState('all')
   const [issueToolQuery, setIssueToolQuery] = useState('')
   const [selectedToolIds, setSelectedToolIds] = useState<string[]>([])
-  const [issueEmployeeConfirmed, setIssueEmployeeConfirmed] = useState(false)
   const [issueStaffConfirmed, setIssueStaffConfirmed] = useState(false)
   const [returnQuery, setReturnQuery] = useState('')
   const [returnToolId, setReturnToolId] = useState('')
@@ -326,11 +325,10 @@ function App() {
     const match = employees.find(employee => employee.barcode.toLowerCase() === normalizedCode || employee.id.toLowerCase() === normalizedCode)
     setIssueBarcode(code)
     setIssueEmployeePreview(match ?? null)
-    if (!match) { setIssueEmployee(null); setIssueEmployeeConfirmed(false); showToast('Ажилтны дугаар эсвэл баркод бүртгэлээс олдсонгүй.', true); return }
-    if (!match.active) { setIssueEmployee(null); setIssueEmployeeConfirmed(false); showToast(`${match.name} ажилтан идэвхгүй тул багаж олгох боломжгүй.`, true); return }
+    if (!match) { setIssueEmployee(null); showToast('Ажилтны дугаар эсвэл баркод бүртгэлээс олдсонгүй.', true); return }
+    if (!match.active) { setIssueEmployee(null); showToast(`${match.name} ажилтан идэвхгүй тул багаж олгох боломжгүй.`, true); return }
     if (issueEmployee?.id === match.id) { showToast(`${match.name} ажилтан аль хэдийн сонгогдсон байна.`); return }
     setIssueEmployee(match)
-    setIssueEmployeeConfirmed(false)
     showToast(`${match.name} ажилтны мэдээлэл олдлоо.`)
   }
   const findIssueEmployee = () => acceptEmployeeCode(issueBarcode)
@@ -340,7 +338,7 @@ function App() {
     const selected = tools.filter(tool => selectedToolIds.includes(tool.id))
     if (!issueEmployee) return showToast('Эхлээд ажилтны баркодыг баталгаажуулна уу.', true)
     if (!selected.length) return showToast('Олгох багаж сонгоно уу.', true)
-    if (!issueEmployeeConfirmed || !issueStaffConfirmed) return showToast('Ажилтан болон агуулахын ажилтны баталгаажуулалт шаардлагатай.', true)
+    if (!issueStaffConfirmed) return showToast('Багажийг эвдрэлгүй олгосныг баталгаажуулна уу.', true)
     if (selected.some(tool => tool.status !== 'available')) return showToast('Сонгосон багаж бэлэн биш байна. Жагсаалтыг шинэчилнэ үү.', true)
     registerEvent('Олголт', issueEmployee.id, selectedToolIds, undefined, current => current.map(tool => selectedToolIds.includes(tool.id) ? { ...tool, status: 'issued', holderId: issueEmployee.id } : tool))
     showToast(`${selected.length} багажийг ${issueEmployee.name} ажилтанд демо горимоор олголоо.`)
@@ -367,7 +365,7 @@ function App() {
   }
 
   const resetIssue = () => {
-    setScannerTarget(null); setIssueBarcode(''); setIssueEmployee(null); setIssueEmployeePreview(null); setIssueEmployeeConfirmed(false); setIssueStaffConfirmed(false)
+    setScannerTarget(null); setIssueBarcode(''); setIssueEmployee(null); setIssueEmployeePreview(null); setIssueStaffConfirmed(false)
     setIssueToolQuery(''); setIssueCategory('all'); setSelectedToolIds([])
   }
 
@@ -681,7 +679,6 @@ function App() {
                           setIssueBarcode(event.target.value)
                           setIssueEmployee(null)
                           setIssueEmployeePreview(null)
-                          setIssueEmployeeConfirmed(false)
                         }}
                         onKeyDown={(event) =>
                           event.key === 'Enter' && findIssueEmployee()
@@ -825,29 +822,6 @@ function App() {
                   </div>
                 )}
                 <div className="confirm-list">
-                  <label
-                    className={`confirm-check ${!issueEmployee ? 'disabled' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={issueEmployeeConfirmed}
-                      disabled={!issueEmployee}
-                      onChange={(event) =>
-                        setIssueEmployeeConfirmed(event.target.checked)
-                      }
-                    />
-                    <span className="confirm-icon">
-                      <UserRound size={16} />
-                    </span>
-                    <span>
-                      <strong>
-                        {issueEmployeeConfirmed
-                          ? 'Ажилтан баталгаажуулсан'
-                          : 'Ажилтан баталгаажуулах'}
-                      </strong>
-                      <small>Багаж хүлээн авахыг зөвшөөрсөн</small>
-                    </span>
-                  </label>
                   <label className="confirm-check">
                     <input
                       type="checkbox"
@@ -862,10 +836,10 @@ function App() {
                     <span>
                       <strong>
                         {issueStaffConfirmed
-                          ? 'Агуулах баталгаажуулсан'
-                          : 'Агуулах баталгаажуулах'}
+                          ? 'Эвдрэлгүй, бүрэн бүтэн өгсөн'
+                          : 'Эвдрэлгүй өгсөн гэж баталгаажуулах'}
                       </strong>
-                      <small>Багажийг олгосныг баталгаажуулсан</small>
+                      <small>Багаж олгогч багажийг эвдрэлгүй олгосныг баталгаажуулна</small>
                     </span>
                   </label>
                 </div>
@@ -875,7 +849,6 @@ function App() {
                   disabled={
                     !issueEmployee ||
                     selectedToolIds.length === 0 ||
-                    !issueEmployeeConfirmed ||
                     !issueStaffConfirmed
                   }
                 >
