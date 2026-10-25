@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'motion/react'
 import {
   Activity, AlertTriangle, ArrowDownToLine, ArrowLeftRight, BarChart3,
   Bell, Boxes, BriefcaseBusiness, Check, CheckCircle2, ChevronDown,
@@ -516,7 +517,7 @@ function App() {
           </div>
         </header>
 
-        <div className="page-content">
+        <motion.div className="page-content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
           <div className="page-heading">
             <div>
               <div className="eyebrow">УУРХАЙН АГУУЛАХ · ДЕМО ӨГӨГДӨЛ</div>
@@ -1736,7 +1737,7 @@ function App() {
               </section>
             </section>
           )}
-        </div>
+        </motion.div>
         <footer className="app-footer">
           <span>
             MineTool Manager <span className="footer-separator">·</span> Демо
@@ -1930,7 +1931,7 @@ const pageDescriptions: Record<Page, string> = {
 }
 
 function StatCard({ label, value, unit, icon: Icon, tone, note }: { label: string; value: number; unit: string; icon: LucideIcon; tone: string; note: string }) {
-  return <article className="stat-card"><div className={`stat-icon ${tone}`}><Icon size={19} /></div><span className="stat-label">{label}</span><div className="stat-value">{value}<small>{unit}</small></div><span className="stat-note">{note}</span></article>
+  return <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 240, damping: 20 }}><div className={`stat-icon ${tone}`}><Icon size={19} /></div><span className="stat-label">{label}</span><div className="stat-value">{value}<small>{unit}</small></div><span className="stat-note">{note}</span></motion.article>
 }
 
 function StatusBadge({ status }: { status: ToolStatus }) { return <span className={`badge ${status}`}><i />{statusLabels[status]}</span> }
