@@ -433,7 +433,6 @@ function App() {
                         key={item.id}
                         onClick={() => changePage(item.id)}
                       >
-                        {page === item.id && <motion.span layoutId="nav-glow" className="nav-glow" transition={{ type: 'spring', stiffness: 380, damping: 30 }} />}
                         <Icon size={18} />
                         <span>{item.label}</span>
                         {item.id === 'sync' && pendingCount > 0 && (
@@ -493,7 +492,7 @@ function App() {
           </div>
         </header>
 
-        <motion.div key={page} className="page-content" initial={{ opacity: 0, y: 18, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+        <motion.div className="page-content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
           <div className="page-heading">
             <div>
               <div className="eyebrow">УУРХАЙН АГУУЛАХ · ДЕМО ӨГӨГДӨЛ</div>
@@ -1796,7 +1795,7 @@ const pageDescriptions: Record<Page, string> = {
 }
 
 function StatCard({ label, value, unit, icon: Icon, tone, note }: { label: string; value: number; unit: string; icon: LucideIcon; tone: string; note: string }) {
-  return <motion.article className="stat-card" initial={{ opacity: 0, y: 24, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -6, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ type: 'spring', stiffness: 240, damping: 20 }}><div className={`stat-icon ${tone}`}><Icon size={19} /></div><span className="stat-label">{label}</span><div className="stat-value"><CountUp value={value} /><small>{unit}</small></div><span className="stat-note">{note}</span></motion.article>
+  return <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 240, damping: 20 }}><div className={`stat-icon ${tone}`}><Icon size={19} /></div><span className="stat-label">{label}</span><div className="stat-value">{value}<small>{unit}</small></div><span className="stat-note">{note}</span></motion.article>
 }
 
 function StatusBadge({ status }: { status: ToolStatus }) { return <span className={`badge ${status}`}><i />{statusLabels[status]}</span> }
@@ -2183,22 +2182,3 @@ function ToolDialog({
 }
 
 export default App
-
-
-function CountUp({ value }: { value: number | string }) {
-  const target = typeof value === 'number' ? value : Number(value)
-  const [shown, setShown] = useState(Number.isFinite(target) ? 0 : target)
-  useEffect(() => {
-    if (!Number.isFinite(target)) return
-    let raf = 0
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / 900)
-      setShown(Math.round(target * (1 - Math.pow(1 - t, 3))))
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [target])
-  return <>{shown}</>
-}
