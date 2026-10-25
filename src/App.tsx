@@ -11,19 +11,16 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import CameraScanner from './components/CameraScanner'
-import ToolQrImage from './components/ToolQrImage'
 import { deleteToolPhoto, getToolPhoto, saveToolPhoto } from './lib/toolPhotos'
-import { addMissingToolQrIds, generateToolQrPng, nextToolQrId } from './lib/toolQr'
 
-type Page = 'dashboard' | 'issue' | 'return' | 'inventory' | 'labels' | 'employees' | 'history' | 'sync' | 'settings'
+type Page = 'dashboard' | 'issue' | 'return' | 'inventory' | 'employees' | 'history' | 'sync' | 'settings'
 type ToolStatus = 'available' | 'issued' | 'overdue' | 'damaged' | 'lost' | 'maintenance' | 'retired'
 type Condition = 'good' | 'damaged' | 'maintenance'
 type Employee = { id: string; name: string; department: string; position: string; barcode: string; active: boolean }
-type ToolItem = { id: string; qrId: string; code: string; name: string; category: string; status: ToolStatus; holderId?: string; photoKey?: string }
-type PrintableTool = Pick<ToolItem, 'qrId' | 'code' | 'name'> & { qrImage: string }
+type ToolItem = { id: string; code: string; name: string; category: string; status: ToolStatus; holderId?: string; photoKey?: string }
 type EventRecord = { id: number; type: 'Олголт' | 'Буцаалт'; date: string; employeeId: string; toolIds: string[]; condition?: string }
-type DemoData = { version: 1; tools: ToolItem[]; employees: Employee[]; events: EventRecord[]; pendingCount: number; lastSync: string }
-type ScanTarget = 'employee' | 'issue-tool' | 'return-tool'
+type DemoData = { version: 1; tools: ToolItem[]; employees: Employee[]; events: EventRecord[]; categories: string[]; pendingCount: number; lastSync: string }
+type ScanTarget = 'employee'
 type ToolPhotoChange = { file?: File; remove: boolean }
 
 const maxToolPhotoBytes = 5 * 1024 * 1024
@@ -38,18 +35,18 @@ const initialEmployees: Employee[] = [
 ]
 
 const initialTools: ToolItem[] = [
-  { id: 't1', qrId: 'TOOL-0001', code: 'DRL-0241', name: 'Цохилтот дрилл', category: 'Өрөмдлөг', status: 'available' },
-  { id: 't2', qrId: 'TOOL-0002', code: 'GRD-0108', name: 'Өнцөг зүлгүүр 125мм', category: 'Цахилгаан багаж', status: 'issued', holderId: 'EMP-1078' },
-  { id: 't3', qrId: 'TOOL-0003', code: 'WLD-0034', name: 'Гагнуурын аппарат', category: 'Гагнуур', status: 'available' },
-  { id: 't4', qrId: 'TOOL-0004', code: 'MTR-0162', name: 'Мультиметр', category: 'Хэмжих хэрэгсэл', status: 'issued', holderId: 'EMP-1183' },
-  { id: 't5', qrId: 'TOOL-0005', code: 'WRN-0320', name: 'Торцовны ком', category: 'Гар багаж', status: 'available' },
-  { id: 't6', qrId: 'TOOL-0006', code: 'SAW-0017', name: 'Дугуй хөрөө', category: 'Цахилгаан багаж', status: 'overdue', holderId: 'EMP-1042' },
-  { id: 't7', qrId: 'TOOL-0007', code: 'HAM-0275', name: 'Лантуу 5кг', category: 'Гар багаж', status: 'available' },
-  { id: 't8', qrId: 'TOOL-0008', code: 'LEV-0043', name: 'Лазер тэгш ус', category: 'Хэмжих хэрэгсэл', status: 'maintenance' },
-  { id: 't9', qrId: 'TOOL-0009', code: 'GRD-0112', name: 'Өнцөг зүлгүүр 230мм', category: 'Цахилгаан багаж', status: 'damaged' },
-  { id: 't10', qrId: 'TOOL-0010', code: 'PMP-0008', name: 'Усны насос', category: 'Насос', status: 'lost' },
-  { id: 't11', qrId: 'TOOL-0011', code: 'DRL-0250', name: 'Аккумулятор дрилл', category: 'Өрөмдлөг', status: 'available' },
-  { id: 't12', qrId: 'TOOL-0012', code: 'WLD-0041', name: 'Электрод баригч', category: 'Гагнуур', status: 'available' },
+  { id: 't1', code: 'DRL-0241', name: 'Цохилтот дрилл', category: 'Өрөмдлөг', status: 'available' },
+  { id: 't2', code: 'GRD-0108', name: 'Өнцөг зүлгүүр 125мм', category: 'Цахилгаан багаж', status: 'issued', holderId: 'EMP-1078' },
+  { id: 't3', code: 'WLD-0034', name: 'Гагнуурын аппарат', category: 'Гагнуур', status: 'available' },
+  { id: 't4', code: 'MTR-0162', name: 'Мультиметр', category: 'Хэмжих хэрэгсэл', status: 'issued', holderId: 'EMP-1183' },
+  { id: 't5', code: 'WRN-0320', name: 'Торцовны ком', category: 'Гар багаж', status: 'available' },
+  { id: 't6', code: 'SAW-0017', name: 'Дугуй хөрөө', category: 'Цахилгаан багаж', status: 'overdue', holderId: 'EMP-1042' },
+  { id: 't7', code: 'HAM-0275', name: 'Лантуу 5кг', category: 'Гар багаж', status: 'available' },
+  { id: 't8', code: 'LEV-0043', name: 'Лазер тэгш ус', category: 'Хэмжих хэрэгсэл', status: 'maintenance' },
+  { id: 't9', code: 'GRD-0112', name: 'Өнцөг зүлгүүр 230мм', category: 'Цахилгаан багаж', status: 'damaged' },
+  { id: 't10', code: 'PMP-0008', name: 'Усны насос', category: 'Насос', status: 'lost' },
+  { id: 't11', code: 'DRL-0250', name: 'Аккумулятор дрилл', category: 'Өрөмдлөг', status: 'available' },
+  { id: 't12', code: 'WLD-0041', name: 'Электрод баригч', category: 'Гагнуур', status: 'available' },
 ]
 
 const initialEvents: EventRecord[] = [
@@ -82,7 +79,6 @@ function isTool(value: unknown): value is ToolItem {
     && typeof value.code === 'string'
     && typeof value.name === 'string'
     && typeof value.category === 'string'
-    && (value.qrId === undefined || typeof value.qrId === 'string')
     && ['available', 'issued', 'overdue', 'damaged', 'lost', 'maintenance', 'retired'].includes(String(value.status))
     && (value.holderId === undefined || typeof value.holderId === 'string')
     && (value.photoKey === undefined || typeof value.photoKey === 'string')
@@ -100,12 +96,42 @@ function isEvent(value: unknown): value is EventRecord {
     && (value.condition === undefined || typeof value.condition === 'string')
 }
 
+const defaultCategories = ['Гар багаж', 'Цахилгаан багаж', 'Өрөмдлөг', 'Гагнуур', 'Хэмжих хэрэгсэл', 'Насос']
+
+const cleanCategoryName = (value: string) => value.trim().replace(/\s+/g, ' ')
+
+function normalizeCategories(saved: unknown, tools: readonly ToolItem[]): string[] {
+  const result: string[] = []
+  const add = (value: unknown) => {
+    if (typeof value !== 'string') return
+    const name = cleanCategoryName(value)
+    if (name && !result.some(item => item.toLocaleLowerCase() === name.toLocaleLowerCase())) result.push(name)
+  }
+  if (Array.isArray(saved)) saved.forEach(add)
+  else defaultCategories.forEach(add)
+  tools.forEach(tool => add(tool.category))
+  return result
+}
+
+// Өмнө хадгалагдсан QR дугаарыг багажийн бүртгэлээс хасна.
+function stripLegacyQr(tool: ToolItem): ToolItem {
+  const { qrId: _qrId, ...rest } = tool as ToolItem & { qrId?: string }
+  return rest
+}
+
+function toolMatches(tool: ToolItem, query: string, category: string, holderName = ''): boolean {
+  const text = query.trim().toLocaleLowerCase()
+  return (category === 'all' || tool.category === category)
+    && (!text || `${tool.name} ${tool.category} ${tool.code} ${holderName}`.toLocaleLowerCase().includes(text))
+}
+
 function freshDemoData(): DemoData {
   return {
     version: 1,
-    tools: addMissingToolQrIds(initialTools.map(tool => ({ ...tool }))),
+    tools: initialTools.map(tool => ({ ...tool })),
     employees: initialEmployees.map(employee => ({ ...employee })),
     events: initialEvents.map(event => ({ ...event, toolIds: [...event.toolIds] })),
+    categories: normalizeCategories(undefined, initialTools),
     pendingCount: 3,
     lastSync: '2026-10-13 08:42',
   }
@@ -124,7 +150,8 @@ function readDemoData(): DemoData {
       || typeof parsed.pendingCount !== 'number' || !Number.isInteger(parsed.pendingCount) || parsed.pendingCount < 0
       || typeof parsed.lastSync !== 'string') return freshDemoData()
     const data = parsed as DemoData
-    return { ...data, tools: addMissingToolQrIds(data.tools) }
+    const cleanedTools = data.tools.map(stripLegacyQr)
+    return { ...data, tools: cleanedTools, categories: normalizeCategories(parsed.categories, cleanedTools) }
   } catch {
     return freshDemoData()
   }
@@ -135,7 +162,6 @@ const pages: { id: Page; label: string; icon: LucideIcon; group: string }[] = [
   { id: 'issue', label: 'Багаж олгох', icon: ArrowDownToLine, group: 'ҮЙЛ АЖИЛЛАГАА' },
   { id: 'return', label: 'Багаж буцаах', icon: ArrowLeftRight, group: 'ҮЙЛ АЖИЛЛАГАА' },
   { id: 'inventory', label: 'Багажны бүртгэл', icon: Boxes, group: 'БҮРТГЭЛ' },
-  { id: 'labels', label: 'Шошго хэвлэх', icon: QrCode, group: 'БҮРТГЭЛ' },
   { id: 'employees', label: 'Ажилтнууд', icon: Users, group: 'БҮРТГЭЛ' },
   { id: 'history', label: 'Түүх ба тайлан', icon: BarChart3, group: 'ТАЙЛАН' },
   { id: 'sync', label: 'Синхрончлол', icon: Cloud, group: 'СИСТЕМ' },
@@ -151,7 +177,7 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('mn-MN', { dateStyle
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [demoData, setDemoData] = useState<DemoData>(() => readDemoData())
-  const { tools, employees, events, pendingCount, lastSync } = demoData
+  const { tools, employees, events, categories, pendingCount, lastSync } = demoData
   const [storageAvailable, setStorageAvailable] = useState(true)
   const [toolPhotoUrls, setToolPhotoUrls] = useState<Record<string, string>>({})
   const [photoViewerToolId, setPhotoViewerToolId] = useState<string | null>(null)
@@ -161,6 +187,7 @@ function App() {
   const [scannerTarget, setScannerTarget] = useState<ScanTarget | null>(null)
   const [inventorySearch, setInventorySearch] = useState('')
   const [inventoryStatus, setInventoryStatus] = useState('all')
+  const [inventoryCategory, setInventoryCategory] = useState('all')
   const [inventoryPage, setInventoryPage] = useState(1)
   const [employeeSearch, setEmployeeSearch] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('all')
@@ -171,22 +198,19 @@ function App() {
   const [issueBarcode, setIssueBarcode] = useState('')
   const [issueEmployee, setIssueEmployee] = useState<Employee | null>(null)
   const [issueEmployeePreview, setIssueEmployeePreview] = useState<Employee | null>(null)
-  const [issueToolCode, setIssueToolCode] = useState('')
-  const [issueToolPreview, setIssueToolPreview] = useState<ToolItem | null>(null)
+  const [issueCategory, setIssueCategory] = useState('all')
   const [issueToolQuery, setIssueToolQuery] = useState('')
   const [selectedToolIds, setSelectedToolIds] = useState<string[]>([])
   const [issueEmployeeConfirmed, setIssueEmployeeConfirmed] = useState(false)
   const [issueStaffConfirmed, setIssueStaffConfirmed] = useState(false)
   const [returnQuery, setReturnQuery] = useState('')
   const [returnToolId, setReturnToolId] = useState('')
-  const [returnToolPreview, setReturnToolPreview] = useState<ToolItem | null>(null)
+  const [returnCategory, setReturnCategory] = useState('all')
   const [returnCondition, setReturnCondition] = useState<Condition>('good')
   const [returnEmployeeConfirmed, setReturnEmployeeConfirmed] = useState(false)
   const [returnStaffConfirmed, setReturnStaffConfirmed] = useState(false)
   const [dialog, setDialog] = useState<ToolItem | 'new' | null>(null)
   const [toolDetailsId, setToolDetailsId] = useState<string | null>(null)
-  const [labelSelectedIds, setLabelSelectedIds] = useState<string[]>([])
-  const [printableTools, setPrintableTools] = useState<PrintableTool[] | null>(null)
 
   useEffect(() => {
     const onOnline = () => setOnline(true)
@@ -242,22 +266,10 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  useEffect(() => {
-    if (!printableTools) return
-    const clearPrintView = () => setPrintableTools(null)
-    window.addEventListener('afterprint', clearPrintView)
-    const timer = window.setTimeout(() => window.print(), 150)
-    return () => {
-      window.clearTimeout(timer)
-      window.removeEventListener('afterprint', clearPrintView)
-    }
-  }, [printableTools])
-
-  const filteredTools = useMemo(() => tools.filter(tool => {
-    const query = inventorySearch.trim().toLocaleLowerCase()
-    const matchesText = !query || `${tool.code} ${tool.name} ${tool.category} ${employees.find(employee => employee.id === tool.holderId)?.name ?? ''}`.toLocaleLowerCase().includes(query)
-    return matchesText && (inventoryStatus === 'all' || tool.status === inventoryStatus)
-  }), [tools, inventorySearch, inventoryStatus, employees])
+  const filteredTools = useMemo(() => tools.filter(tool => (
+    toolMatches(tool, inventorySearch, inventoryCategory, employees.find(employee => employee.id === tool.holderId)?.name ?? '')
+    && (inventoryStatus === 'all' || tool.status === inventoryStatus)
+  )), [tools, inventorySearch, inventoryCategory, inventoryStatus, employees])
   const pageSize = 7
   const pageCount = Math.max(1, Math.ceil(filteredTools.length / pageSize))
   const pageTools = filteredTools.slice((inventoryPage - 1) * pageSize, inventoryPage * pageSize)
@@ -282,35 +294,22 @@ function App() {
   const showToast = (text: string, error = false) => setToast({ text, error })
   const changePage = (next: Page) => { setScannerTarget(null); setPage(next); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const employeeById = (id?: string) => employees.find(employee => employee.id === id)
-  const printToolLabels = async (labelTools: ToolItem[]) => {
-    if (!labelTools.length) {
-      showToast('Хэвлэх багаж сонгоно уу.', true)
-      return
-    }
-    try {
-      const labels = await Promise.all(labelTools.map(async tool => ({
-        qrId: tool.qrId,
-        code: tool.code,
-        name: tool.name,
-        qrImage: await generateToolQrPng(tool.qrId, 640),
-      })))
-      setPrintableTools(labels)
-    } catch {
-      showToast('QR шошгыг үүсгэж чадсангүй. Дахин оролдоно уу.', true)
-    }
+  const addCategory = (input: string): { name?: string; error?: string } => {
+    const name = cleanCategoryName(input)
+    if (!name) return { error: 'Ангилалын нэрийг бичнэ үү.' }
+    const existing = categories.find(item => item.toLocaleLowerCase() === name.toLocaleLowerCase())
+    if (existing) return { name: existing }
+    setDemoData(current => current.categories.some(item => item.toLocaleLowerCase() === name.toLocaleLowerCase())
+      ? current
+      : { ...current, categories: [...current.categories, name] })
+    return { name }
   }
-  const downloadToolQr = async (tool: ToolItem) => {
-    try {
-      const image = await generateToolQrPng(tool.qrId, 1024)
-      const link = document.createElement('a')
-      link.href = image
-      link.download = `${tool.qrId}.png`
-      document.body.append(link)
-      link.click()
-      link.remove()
-    } catch {
-      showToast('QR PNG файлыг үүсгэж чадсангүй. Дахин оролдоно уу.', true)
-    }
+  const removeCategory = (name: string): { error?: string } => {
+    const used = tools.filter(tool => tool.category === name).length
+    if (used > 0) return { error: `"${name}" ангилалд ${used} багаж бүртгэлтэй тул хасах боломжгүй. Эхлээд тэдгээр багажийн ангиллыг өөрчилнө үү.` }
+    if (categories.length <= 1) return { error: 'Хамгийн багадаа нэг ангилал үлдэх ёстой.' }
+    setDemoData(current => ({ ...current, categories: current.categories.filter(item => item !== name) }))
+    return {}
   }
   const registerEvent = (type: EventRecord['type'], employeeId: string, toolIds: string[], condition?: string, updateTools?: (current: ToolItem[]) => ToolItem[]) => {
     const event: EventRecord = { id: Date.now(), type, date: new Date().toISOString(), employeeId, toolIds: [...toolIds], condition }
@@ -336,19 +335,6 @@ function App() {
   }
   const findIssueEmployee = () => acceptEmployeeCode(issueBarcode)
 
-  const acceptIssueToolCode = (code: string) => {
-    setIssueToolCode(code)
-    const normalizedCode = code.trim().toLowerCase()
-    const match = tools.find(tool => tool.qrId.toLowerCase() === normalizedCode || tool.code.toLowerCase() === normalizedCode || tool.id.toLowerCase() === normalizedCode)
-    if (!match) { setIssueToolPreview(null); showToast('Багажны QR код эсвэл дугаар бүртгэлээс олдсонгүй.', true); return }
-    setIssueToolPreview(match)
-    if (match.status !== 'available') { showToast(`${match.code} — ${statusLabels[match.status]} тул олгох боломжгүй.`, true); return }
-    if (selectedToolIds.includes(match.id)) { showToast(`${match.code} багаж сонгосон жагсаалтад байна.`); return }
-    setSelectedToolIds(current => current.includes(match.id) ? current : [...current, match.id])
-    showToast(`${match.code} багажийг олголтын жагсаалтад нэмлээ.`)
-  }
-  const findIssueTool = () => acceptIssueToolCode(issueToolCode)
-
   const toggleIssueTool = (id: string) => setSelectedToolIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
   const confirmIssue = () => {
     const selected = tools.filter(tool => selectedToolIds.includes(tool.id))
@@ -361,25 +347,14 @@ function App() {
     resetIssue()
   }
 
-  const acceptReturnToolCode = (code: string) => {
-    setReturnQuery(code)
-    const normalizedCode = code.trim().toLowerCase()
-    const match = tools.find(tool => tool.qrId.toLowerCase() === normalizedCode || tool.code.toLowerCase() === normalizedCode || tool.id.toLowerCase() === normalizedCode)
-    if (!match) { setReturnToolId(''); setReturnToolPreview(null); showToast('Багажны QR код эсвэл дугаар бүртгэлээс олдсонгүй.', true); return }
-    setReturnToolPreview(match)
-    if (!['issued', 'overdue'].includes(match.status) || !match.holderId) {
-      setReturnToolId('')
-      showToast(`${match.code} багаж ${statusLabels[match.status]} төлөвтэй тул буцаах боломжгүй.`, true)
+  const selectReturnTool = (tool: ToolItem) => {
+    if (!['issued', 'overdue'].includes(tool.status) || !tool.holderId) {
+      showToast(`${tool.name} багаж ${statusLabels[tool.status]} төлөвтэй тул буцаах боломжгүй.`, true)
       return
     }
-    if (returnToolId === match.id) {
-      showToast(`${match.code} багаж буцаалтын жагсаалтад аль хэдийн сонгогдсон байна.`)
-      return
-    }
-    setReturnToolId(match.id); setReturnEmployeeConfirmed(false); setReturnStaffConfirmed(false)
-    showToast(`${match.code} багажийн олголтын мэдээлэл олдлоо.`)
+    if (returnToolId === tool.id) return
+    setReturnToolId(tool.id); setReturnEmployeeConfirmed(false); setReturnStaffConfirmed(false)
   }
-  const findReturnTool = () => acceptReturnToolCode(returnQuery)
 
   const confirmReturn = () => {
     const tool = tools.find(item => item.id === returnToolId)
@@ -393,11 +368,11 @@ function App() {
 
   const resetIssue = () => {
     setScannerTarget(null); setIssueBarcode(''); setIssueEmployee(null); setIssueEmployeePreview(null); setIssueEmployeeConfirmed(false); setIssueStaffConfirmed(false)
-    setIssueToolCode(''); setIssueToolPreview(null); setIssueToolQuery(''); setSelectedToolIds([])
+    setIssueToolQuery(''); setIssueCategory('all'); setSelectedToolIds([])
   }
 
   const resetReturn = () => {
-    setScannerTarget(null); setReturnQuery(''); setReturnToolId(''); setReturnToolPreview(null)
+    setScannerTarget(null); setReturnQuery(''); setReturnCategory('all'); setReturnToolId('')
     setReturnCondition('good'); setReturnEmployeeConfirmed(false); setReturnStaffConfirmed(false)
   }
 
@@ -426,7 +401,9 @@ function App() {
   const activeReturnTool = tools.find(tool => tool.id === returnToolId)
   const selectedDetailsTool = tools.find(tool => tool.id === toolDetailsId)
   const activeReturnIssue = activeReturnTool && events.find(event => event.type === 'Олголт' && event.toolIds.includes(activeReturnTool.id))
-  const issueCandidates = tools.filter(tool => tool.status === 'available' && `${tool.qrId} ${tool.code} ${tool.name}`.toLowerCase().includes(issueToolQuery.toLowerCase()))
+  const issueCandidates = tools.filter(tool => tool.status === 'available' && toolMatches(tool, issueToolQuery, issueCategory))
+  const returnCandidates = tools.filter(tool => (tool.status === 'issued' || tool.status === 'overdue') && tool.holderId
+    && toolMatches(tool, returnQuery, returnCategory, employeeById(tool.holderId)?.name ?? ''))
 
   return (
     <div className="app-shell">
@@ -530,7 +507,6 @@ function App() {
             </div>
             {page === 'inventory' && (
               <div className="page-heading-actions">
-                <button className="button secondary" onClick={() => changePage('labels')}><QrCode size={16} /> Шошго хэвлэх</button>
                 <button className="button primary" onClick={() => setDialog('new')}><Plus size={17} /> Багаж нэмэх</button>
               </div>
             )}
@@ -737,50 +713,11 @@ function App() {
                   <span className="step-number">02</span>
                   <div>
                     <h2>Багаж сонгох</h2>
-                    <p>QR код уншуулах эсвэл бэлэн жагсаалтаас сонгох</p>
+                    <p>Нэр, ангилалаар хайж бэлэн багажаас сонгоно</p>
                   </div>
                   <span className="step-count">
                     {selectedToolIds.length} сонгосон
                   </span>
-                </div>
-                <div className="panel workflow-panel scan-tool-panel">
-                  <label className="field-label" htmlFor="issue-tool-code">
-                    Багажны QR код / бүртгэлийн дугаар
-                  </label>
-                  <div className="scan-input-row">
-                    <div className="input-with-icon">
-                      <QrCode size={19} />
-                      <input
-                        id="issue-tool-code"
-                        value={issueToolCode}
-                        onChange={(event) => {
-                          setIssueToolCode(event.target.value)
-                          setIssueToolPreview(null)
-                        }}
-                        onKeyDown={(event) =>
-                          event.key === 'Enter' && findIssueTool()
-                        }
-                        placeholder="Жишээ: DRL-0241"
-                        autoComplete="off"
-                      />
-                    </div>
-                    <button
-                      className="button secondary scan-trigger"
-                      onClick={() => setScannerTarget('issue-tool')}
-                    >
-                      <Camera size={17} /> Камер
-                    </button>
-                    <button className="button primary" onClick={findIssueTool}>
-                      Багаж нэмэх
-                    </button>
-                  </div>
-                  {issueToolPreview && (
-                    <ScannedToolPreview
-                      tool={issueToolPreview}
-                      holder={employeeById(issueToolPreview.holderId)}
-                      photoUrl={toolPhotoUrls[issueToolPreview.id]}
-                    />
-                  )}
                 </div>
                 <div className="panel tool-picker">
                   <div className="panel-toolbar">
@@ -791,8 +728,23 @@ function App() {
                         onChange={(event) =>
                           setIssueToolQuery(event.target.value)
                         }
-                        placeholder="Код эсвэл нэрээр хайх"
+                        placeholder="Нэр эсвэл ангилалаар хайх"
+                        aria-label="Багаж хайх"
                       />
+                    </div>
+                    <div className="filter-control">
+                      <SlidersHorizontal size={16} />
+                      <select
+                        value={issueCategory}
+                        onChange={(event) => setIssueCategory(event.target.value)}
+                        aria-label="Багажийн ангилал"
+                      >
+                        <option value="all">Бүх ангилал</option>
+                        {categories.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} />
                     </div>
                     <span className="available-note">
                       <span /> {issueCandidates.length} бэлэн
@@ -949,69 +901,66 @@ function App() {
                   <span className="step-number">01</span>
                   <div>
                     <h2>Буцаах багаж хайх</h2>
-                    <p>QR код уншуулах эсвэл кодыг гараар оруулна</p>
+                    <p>Нэр, ангилалаар хайж олгосон багажаас сонгоно</p>
                   </div>
                 </div>
-                <div className="panel workflow-panel">
-                  <label className="field-label" htmlFor="return-code">
-                    Багажны QR / код
-                  </label>
-                  <div className="scan-input-row">
-                    <div className="input-with-icon">
-                      <QrCode size={19} />
+                <div className="panel tool-picker">
+                  <div className="panel-toolbar">
+                    <div className="input-with-icon search-input">
+                      <Search size={17} />
                       <input
-                        id="return-code"
                         value={returnQuery}
-                        onChange={(event) => {
-                          setReturnQuery(event.target.value)
-                          setReturnToolId('')
-                          setReturnToolPreview(null)
-                          setReturnEmployeeConfirmed(false)
-                          setReturnStaffConfirmed(false)
-                        }}
-                        onKeyDown={(event) =>
-                          event.key === 'Enter' && findReturnTool()
-                        }
-                        placeholder="Жишээ: GRD-0108"
+                        onChange={(event) => setReturnQuery(event.target.value)}
+                        placeholder="Нэр, ангилал, эзэмшигчээр хайх"
+                        aria-label="Буцаах багаж хайх"
                         autoComplete="off"
                       />
                     </div>
-                    <button
-                      className="button secondary scan-trigger"
-                      onClick={() => setScannerTarget('return-tool')}
-                    >
-                      <Camera size={17} /> Камер
-                    </button>
-                    <button className="button primary" onClick={findReturnTool}>
-                      Хайх
-                    </button>
+                    <div className="filter-control">
+                      <SlidersHorizontal size={16} />
+                      <select
+                        value={returnCategory}
+                        onChange={(event) => setReturnCategory(event.target.value)}
+                        aria-label="Багажийн ангилал"
+                      >
+                        <option value="all">Бүх ангилал</option>
+                        {categories.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} />
+                    </div>
+                    <span className="available-note">
+                      <span /> {returnCandidates.length} олгосон
+                    </span>
                   </div>
-                  {returnToolPreview && (
-                    <ScannedToolPreview
-                      tool={returnToolPreview}
-                      holder={employeeById(returnToolPreview.holderId)}
-                      photoUrl={toolPhotoUrls[returnToolPreview.id]}
-                    />
-                  )}
-                  <div className="return-shortcuts">
-                    <span>Буцаах боломжтой:</span>
-                    {tools
-                      .filter(
-                        (tool) =>
-                          (tool.status === 'issued' ||
-                            tool.status === 'overdue') &&
-                          tool.holderId,
-                      )
-                      .map((tool) => (
-                        <button
-                          type="button"
-                          key={tool.id}
-                          className={`code-chip ${returnToolId === tool.id ? 'active' : ''}`}
-                          onClick={() => acceptReturnToolCode(tool.code)}
-                        >
-                          {tool.code}
-                        </button>
-                      ))}
+                  <div className="pick-list">
+                    {returnCandidates.map((tool) => (
+                      <label
+                        className={`pick-row ${returnToolId === tool.id ? 'selected' : ''}`}
+                        key={tool.id}
+                      >
+                        <input
+                          type="radio"
+                          name="return-tool"
+                          checked={returnToolId === tool.id}
+                          onChange={() => selectReturnTool(tool)}
+                        />
+                        <span className="tool-symbol">
+                          <ToolCase size={17} />
+                        </span>
+                        <span className="pick-tool-info">
+                          <strong>{tool.name}</strong>
+                          <small>
+                            {tool.category} · {employeeById(tool.holderId)?.name ?? '—'}
+                          </small>
+                        </span>
+                        <StatusBadge status={tool.status} />
+                      </label>
+                    ))}
+                    {returnCandidates.length === 0 && (
+                      <EmptyState text="Хайлтад тохирох олгосон багаж олдсонгүй." />
+                    )}
                   </div>
                 </div>
                 {activeReturnTool && (
@@ -1092,14 +1041,10 @@ function App() {
                 <div className="summary-block">
                   <span>Багаж</span>
                   <strong>
-                    {activeReturnTool?.code ??
-                      returnToolPreview?.code ??
-                      'Сонгоогүй'}
+                    {activeReturnTool?.code ?? 'Сонгоогүй'}
                   </strong>
                   <small>
-                    {activeReturnTool?.name ??
-                      returnToolPreview?.name ??
-                      'QR код уншуулаагүй'}
+                    {activeReturnTool?.name ?? 'Багаж сонгоогүй'}
                   </small>
                 </div>
                 <div className="summary-block">
@@ -1194,8 +1139,25 @@ function App() {
                       setInventorySearch(event.target.value)
                       setInventoryPage(1)
                     }}
-                    placeholder="Код, нэр, ангилал, эзэмшигчээр хайх"
+                    placeholder="Нэр, ангилал, эзэмшигчээр хайх"
                   />
+                </div>
+                <div className="filter-control">
+                  <SlidersHorizontal size={16} />
+                  <select
+                    value={inventoryCategory}
+                    onChange={(event) => {
+                      setInventoryCategory(event.target.value)
+                      setInventoryPage(1)
+                    }}
+                    aria-label="Багажийн ангилал"
+                  >
+                    <option value="all">Бүх ангилал</option>
+                    {categories.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} />
                 </div>
                 <div className="filter-control">
                   <SlidersHorizontal size={16} />
@@ -1248,7 +1210,6 @@ function App() {
                                 <strong>{tool.name}</strong>
                               </button>
                               <small>{tool.code}</small>
-                              <small>{tool.qrId}</small>
                             </span>
                           </div>
                         </td>
@@ -1306,42 +1267,6 @@ function App() {
                   </button>
                 </div>
               </div>
-            </section>
-          )}
-
-          {page === 'labels' && (
-            <section className="page-stack label-selection-page">
-              <div className="demo-banner compact">
-                <div className="demo-banner-icon"><QrCode size={18} /></div>
-                <div>
-                  <strong>Локал демо QR шошго</strong>
-                  <span>QR нь зөвхөн тогтмол багажийн дугаарыг агуулна. Энэ бүртгэл төв серверт холбогдоогүй.</span>
-                </div>
-                <span className="demo-badge">ДЕМО</span>
-              </div>
-              <section className="panel label-picker-panel">
-                <div className="panel-heading">
-                  <div><h2>Хэвлэх багаж сонгох</h2><p>{labelSelectedIds.length} багаж сонгосон</p></div>
-                  <div className="label-picker-actions">
-                    <button type="button" className="button secondary" onClick={() => setLabelSelectedIds(tools.map(tool => tool.id))}>Бүгдийг сонгох</button>
-                    <button type="button" className="button secondary" onClick={() => setLabelSelectedIds([])}>Сонголт цэвэрлэх</button>
-                    <button type="button" className="button primary" disabled={!labelSelectedIds.length} onClick={() => void printToolLabels(tools.filter(tool => labelSelectedIds.includes(tool.id)))}><QrCode size={16} /> Сонгосон шошгыг хэвлэх</button>
-                  </div>
-                </div>
-                <div className="label-tool-list">
-                  {tools.map(tool => (
-                    <label className="label-tool-row" key={tool.id}>
-                      <input
-                        type="checkbox"
-                        checked={labelSelectedIds.includes(tool.id)}
-                        onChange={() => setLabelSelectedIds(current => current.includes(tool.id) ? current.filter(id => id !== tool.id) : [...current, tool.id])}
-                      />
-                      <span><strong>{tool.name}</strong><small>{tool.qrId} · {tool.code}</small></span>
-                      <StatusBadge status={tool.status} />
-                    </label>
-                  ))}
-                </div>
-              </section>
             </section>
           )}
 
@@ -1805,20 +1730,10 @@ function App() {
       )}
       {scannerTarget && (
         <CameraScanner
-          title={
-            scannerTarget === 'employee'
-              ? 'Ажилтны баркод уншуулах'
-              : 'Багажны код уншуулах'
-          }
-          instruction={
-            scannerTarget === 'employee'
-              ? 'Ажилтны үнэмлэх дээрх баркодыг хүрээ дотор байрлуулна уу.'
-              : 'Багажны QR эсвэл шошгыг хүрээ дотор байрлуулна уу.'
-          }
+          title="Ажилтны баркод уншуулах"
+          instruction="Ажилтны үнэмлэх дээрх баркодыг хүрээ дотор байрлуулна уу."
           onDetected={(value) => {
-            if (scannerTarget === 'employee') acceptEmployeeCode(value)
-            else if (scannerTarget === 'issue-tool') acceptIssueToolCode(value)
-            else acceptReturnToolCode(value)
+            acceptEmployeeCode(value)
             setScannerTarget(null)
           }}
           onClose={() => setScannerTarget(null)}
@@ -1833,33 +1748,10 @@ function App() {
       {selectedDetailsTool && (
         <ToolDetailsDialog
           tool={selectedDetailsTool}
+          holder={employeeById(selectedDetailsTool.holderId)}
+          photoUrl={toolPhotoUrls[selectedDetailsTool.id]}
           onClose={() => setToolDetailsId(null)}
-          onPrint={() => {
-            const tool = tools.find(item => item.id === toolDetailsId)
-            if (tool) void printToolLabels([tool])
-          }}
-          onDownload={() => {
-            const tool = tools.find(item => item.id === toolDetailsId)
-            if (tool) void downloadToolQr(tool)
-          }}
         />
-      )}
-      {printableTools && (
-        <div className="print-document" aria-label="Хэвлэх QR шошго">
-          <div className="print-label-sheet">
-            {printableTools.map(tool => (
-              <article className="print-label" key={tool.qrId}>
-                <img src={tool.qrImage} alt={`${tool.qrId} QR код`} />
-                <div className="print-label-copy">
-                <small>{tool.qrId}</small>
-                <strong>{tool.code}</strong>
-                  <span>{tool.name}</span>
-                  <b>БҮРТГЭЛТЭЙ БАГАЖ</b>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
       )}
       {toast && (
         <div
@@ -1883,21 +1775,20 @@ function App() {
         <ToolDialog
           tool={dialog === 'new' ? undefined : dialog}
           photoKey={dialog === 'new' ? undefined : dialog.photoKey}
-          nextQrId={nextToolQrId(tools)}
+          categories={categories}
+          onAddCategory={addCategory}
+          onRemoveCategory={removeCategory}
           existingCodes={tools
             .filter((item) => dialog === 'new' || item.id !== dialog.id)
             .map((item) => item.code)}
           onClose={() => setDialog(null)}
           onSave={async (tool, photoChange, isNew) => {
             const existingTool = tools.find(item => item.id === tool.id)
-            if (isNew && tools.some(item => item.id === tool.id || item.qrId.toUpperCase() === tool.qrId.toUpperCase())) {
-              throw new Error('Багажийн дугаар эсвэл QR дугаар давхардсан байна. Дахин оролдоно уу.')
+            if (isNew && existingTool) {
+              throw new Error('Багажийн дугаар давхардсан байна. Дахин оролдоно уу.')
             }
-            if (!isNew && (!existingTool || existingTool.qrId !== tool.qrId)) {
-              throw new Error('Бүртгэлтэй багажийн QR дугаарыг өөрчлөх боломжгүй.')
-            }
-            if (tools.some(item => item.id !== tool.id && item.qrId.toUpperCase() === tool.qrId.toUpperCase())) {
-              throw new Error('Энэ QR дугаар өөр багажид бүртгэлтэй байна.')
+            if (!isNew && !existingTool) {
+              throw new Error('Багаж бүртгэлээс олдсонгүй. Жагсаалтыг шинэчлээд дахин оролдоно уу.')
             }
             try {
               if (photoChange.file) await saveToolPhoto(tool.id, photoChange.file)
@@ -1927,7 +1818,7 @@ function App() {
 }
 
 const pageDescriptions: Record<Page, string> = {
-  dashboard: 'Өнөөдрийн багаж хэрэгслийн бүртгэлийн тойм', issue: 'Ажилтанд багаж олгох үйл явцыг баталгаажуулна', return: 'Багаж хүлээн авч нөхцөлийг бүртгэнэ', inventory: 'Багажийн бүртгэл, төлөвийг удирдана', labels: 'Багажийн QR шошгыг нэг дор хэвлэнэ', employees: 'Ажилтны жишээ бүртгэл, баркодын мэдээлэл', history: 'Олголт, буцаалтын үйл ажиллагааны тайлан', sync: 'Офлайн төлөв болон демо үйлдлийн дараалал', settings: 'Аппликейшний одоогийн тохиргоо ба холболтууд',
+  dashboard: 'Өнөөдрийн багаж хэрэгслийн бүртгэлийн тойм', issue: 'Ажилтанд багаж олгох үйл явцыг баталгаажуулна', return: 'Багаж хүлээн авч нөхцөлийг бүртгэнэ', inventory: 'Багажийн бүртгэл, төлөвийг удирдана', employees: 'Ажилтны жишээ бүртгэл, баркодын мэдээлэл', history: 'Олголт, буцаалтын үйл ажиллагааны тайлан', sync: 'Офлайн төлөв болон демо үйлдлийн дараалал', settings: 'Аппликейшний одоогийн тохиргоо ба холболтууд',
 }
 
 function StatCard({ label, value, unit, icon: Icon, tone, note }: { label: string; value: number; unit: string; icon: LucideIcon; tone: string; note: string }) {
@@ -1938,10 +1829,6 @@ function StatusBadge({ status }: { status: ToolStatus }) { return <span classNam
 
 function EmployeePreview({ employee }: { employee: Employee }) {
   return <div className="employee-preview"><span className="person-avatar large-avatar">{employee.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span><div><strong>{employee.name}</strong><span>{employee.id} · {employee.position}</span><small>{employee.department}</small></div><span className={`badge ${employee.active ? 'active-status' : 'inactive-status'}`}><i />{employee.active ? 'Идэвхтэй' : 'Идэвхгүй'}</span></div>
-}
-
-function ScannedToolPreview({ tool, holder, photoUrl }: { tool: ToolItem; holder?: Employee; photoUrl?: string }) {
-  return <div className="scanned-tool-preview"><ToolPhotoThumb src={photoUrl} alt={`${tool.name} зураг`} /><div className="scanned-tool-copy"><strong>{tool.name}</strong><span>{tool.code} · {tool.category}</span><small>{tool.qrId} · Одоогийн эзэмшигч: {holder?.name ?? 'Байхгүй'}</small></div><StatusBadge status={tool.status} /></div>
 }
 
 function ToolPhotoThumb({ src, alt, onClick }: { src?: string; alt: string; onClick?: () => void }) {
@@ -1989,28 +1876,22 @@ function SettingRow({ icon: Icon, label, value, negative = false }: { icon: Luci
   return <div className="setting-row"><span className="setting-icon"><Icon size={17} /></span><span className="setting-label">{label}</span><strong className={negative ? 'red-text' : ''}>{value}</strong></div>
 }
 
-function ToolDetailsDialog({ tool, onClose, onPrint, onDownload }: { tool: ToolItem; onClose: () => void; onPrint: () => void; onDownload: () => void }) {
+function ToolDetailsDialog({ tool, holder, photoUrl, onClose }: { tool: ToolItem; holder?: Employee; photoUrl?: string; onClose: () => void }) {
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}>
       <section className="dialog tool-details-dialog" role="dialog" aria-modal="true" aria-labelledby="tool-details-title">
         <div className="dialog-heading">
-          <div><span className="eyebrow">БАГАЖИЙН ДЭМО QR БҮРТГЭЛ</span><h2 id="tool-details-title">{tool.name}</h2></div>
+          <div><span className="eyebrow">БАГАЖИЙН МЭДЭЭЛЭЛ</span><h2 id="tool-details-title">{tool.name}</h2></div>
           <button type="button" className="icon-button" aria-label="Хаах" onClick={onClose}><X size={19} /></button>
         </div>
-        <div className="tool-qr-card">
-          <ToolQrImage qrId={tool.qrId} size={300} className="tool-qr-image" />
-          <div className="tool-qr-copy">
-            <strong>{tool.code}</strong>
-            <span>{tool.name}</span>
-            <code>{tool.qrId}</code>
-            <StatusBadge status={tool.status} />
+        <div className="scanned-tool-preview">
+          <ToolPhotoThumb src={photoUrl} alt={`${tool.name} зураг`} />
+          <div className="scanned-tool-copy">
+            <strong>{tool.name}</strong>
+            <span>{tool.code} · {tool.category}</span>
+            <small>Одоогийн эзэмшигч: {holder?.name ?? 'Байхгүй'}</small>
           </div>
-        </div>
-        <p className="qr-demo-note"><CircleHelp size={15} /> QR дугаар энэ төхөөрөмжийн локал демо бүртгэлтэй холбогдоно. Төв серверт бүртгэгдээгүй.</p>
-        <div className="tool-qr-actions">
-          <button type="button" className="button primary" onClick={onPrint}><QrCode size={16} /> QR код хэвлэх</button>
-          <button type="button" className="button secondary" onClick={onDownload}><Download size={16} /> QR код татах</button>
-          <button type="button" className="button secondary" onClick={onPrint}><QrCode size={16} /> QR код дахин хэвлэх</button>
+          <StatusBadge status={tool.status} />
         </div>
       </section>
     </div>
@@ -2019,23 +1900,29 @@ function ToolDetailsDialog({ tool, onClose, onPrint, onDownload }: { tool: ToolI
 
 function ToolDialog({
   tool,
-  nextQrId,
   photoKey,
   existingCodes,
+  categories,
+  onAddCategory,
+  onRemoveCategory,
   onClose,
   onSave,
 }: {
   tool?: ToolItem
-  nextQrId: string
   photoKey?: string
   existingCodes: string[]
+  categories: string[]
+  onAddCategory: (name: string) => { name?: string; error?: string }
+  onRemoveCategory: (name: string) => { error?: string }
   onClose: () => void
   onSave: (tool: ToolItem, photoChange: ToolPhotoChange, isNew: boolean) => Promise<void>
 }) {
   const isNew = !tool
   const [code, setCode] = useState(tool?.code ?? '')
   const [name, setName] = useState(tool?.name ?? '')
-  const [category, setCategory] = useState(tool?.category ?? 'Гар багаж')
+  const [category, setCategory] = useState(tool?.category ?? categories[0] ?? '')
+  const [newCategory, setNewCategory] = useState('')
+  const [categoryError, setCategoryError] = useState('')
   const [status, setStatus] = useState<ToolStatus>(tool?.status ?? 'available')
   const [selectedPhoto, setSelectedPhoto] = useState<File>()
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string>()
@@ -2131,7 +2018,6 @@ function ToolDialog({
     const id = tool?.id ?? `tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const nextTool: ToolItem = {
       id,
-      qrId: tool?.qrId ?? nextQrId,
       code: code.trim().toUpperCase(),
       name: name.trim(),
       category: category.trim(),
@@ -2152,6 +2038,20 @@ function ToolDialog({
       setSaving(false)
     }
   }
+  const handleAddCategory = () => {
+    const result = onAddCategory(newCategory)
+    if (result.error || !result.name) { setCategoryError(result.error ?? 'Ангилал нэмэх боломжгүй байна.'); return }
+    setCategory(result.name)
+    setNewCategory('')
+    setCategoryError('')
+  }
+  const handleRemoveCategory = (name: string) => {
+    const result = onRemoveCategory(name)
+    if (result.error) { setCategoryError(result.error); return }
+    setCategoryError('')
+    if (category === name) setCategory(categories.find(item => item !== name) ?? '')
+  }
+
   const displayedPhotoUrl = selectedPhotoUrl ?? (photoRemoved ? undefined : existingPhotoUrl)
   const hasPhoto = Boolean(displayedPhotoUrl || (photoKey && !photoRemoved))
 
@@ -2205,17 +2105,55 @@ function ToolDialog({
             maxLength={80}
           />
         </label>
-        <label className="form-field">
-          <span>
+        <div className="form-field category-field">
+          <label htmlFor="tool-category">
             Ангилал <b>*</b>
-          </span>
-          <input
+          </label>
+          <select
+            id="tool-category"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            placeholder="Жишээ: Гар багаж"
-            maxLength={50}
-          />
-        </label>
+          >
+            {categories.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+          <ul className="category-chips" aria-label="Ангилалын жагсаалт">
+            {categories.map((item) => (
+              <li className="category-chip" key={item}>
+                <span>{item}</span>
+                <button
+                  type="button"
+                  aria-label={`${item} ангилалыг хасах`}
+                  onClick={() => handleRemoveCategory(item)}
+                >
+                  <X size={13} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="category-add">
+            <input
+              value={newCategory}
+              onChange={(event) => { setNewCategory(event.target.value); setCategoryError('') }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') { event.preventDefault(); handleAddCategory() }
+              }}
+              placeholder="Шинэ ангилал нэмэх"
+              aria-label="Шинэ ангилалын нэр"
+              maxLength={50}
+            />
+            <button type="button" className="button secondary" onClick={handleAddCategory}>
+              <Plus size={16} /> Нэмэх
+            </button>
+          </div>
+          {categoryError && (
+            <div className="form-error">
+              <AlertTriangle size={15} />
+              {categoryError}
+            </div>
+          )}
+        </div>
         <label className="form-field">
           <span>Төлөв</span>
           <select

@@ -699,3 +699,22 @@ body { background: radial-gradient(circle at 92% 0%, #ffffff 0, var(--canvas) 42
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Ангилал нэмэх / хасах ---------- */
+.category-field > label { display: block; margin-bottom: 6px; color: #4f616f; font-size: 10px; font-weight: 600; }
+.category-field > label b { color: #c65e3f; }
+.category-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.category-chip { display: inline-flex; min-height: 36px; align-items: center; gap: 4px; padding: 0 4px 0 12px; border: 1px solid #dce3e8; border-radius: 999px; background: #f6f8fa; color: #405564; font-size: 12px; font-weight: 600; }
+.category-chip button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #7f909c; cursor: pointer; }
+.category-chip button:hover { background: #e8ecef; color: #b3382c; }
+.category-chip button:focus-visible { outline: 2px solid var(--orange, #e8872b); outline-offset: 1px; }
+.category-add { display: flex; gap: 8px; margin-top: 12px; }
+.category-add input { flex: 1; min-width: 0; }
+.category-add .button { flex: 0 0 auto; }
+.category-field .form-error { margin-top: 10px; }
+@media (prefers-color-scheme: dark) {
+  .category-field > label { color: #9fb2bf; }
+  .category-chip { border-color: #27414f; background: #12293a; color: #dbe7ee; }
+  .category-chip button { color: #9fb2bf; }
+  .category-chip button:hover { background: #1b3a4e; color: #ff9d92; }
+}
