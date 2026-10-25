@@ -1,0 +1,60 @@
+name: Android APK
+
+# Зөвхөн гараар ажиллуулна: GitHub → Actions → "Android APK" → Run workflow
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Android platform
+        run: |
+          npx cap add android
+          # Ажилтны үнэмлэхний баркод уншихад камер хэрэгтэй
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q "android.permission.CAMERA" "$MANIFEST" || \
+            sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />#' "$MANIFEST"
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk MineTool.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MineTool-apk
+          path: MineTool.apk
+
+      - name: Publish release (утаснаас шууд татах)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest MineTool.apk \
+            --title "MineTool APK (latest)" \
+            --notes "Debug APK. Утсандаа татаж суулгана (Unknown sources зөвшөөрнө)." \
+            --target "$GITHUB_SHA"

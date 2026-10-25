@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty"
+    "typecheck": "tsc -b --pretty",
+    "cap:sync": "npm run build && cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
     "@vitejs/plugin-react": "^4.3.4",
     "html5-qrcode": "^2.3.8",
     "idb": "^8.0.4",
@@ -19,6 +22,7 @@
     "vite": "^6.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
