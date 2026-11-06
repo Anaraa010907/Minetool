@@ -4,22 +4,24 @@ import {
   Activity, AlertTriangle, ArrowDownToLine, ArrowLeftRight, BarChart3,
   Bell, Boxes, BriefcaseBusiness, Check, CheckCircle2, ChevronDown,
   ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock3, Cloud,
-  Camera, Download, HardHat, Home, Image as ImageIcon, Languages, Menu, Package, PackageCheck,
+  Camera, Download, HardHat, Home, Image as ImageIcon, Languages, Package, PackageCheck,
   Pencil, Plus, QrCode, Radio, Search, Settings, ShieldCheck, Signal,
   RotateCcw, SignalZero, SlidersHorizontal, Trash2, UserRound, Users, Wrench as ToolCase,
-  X, XCircle,
+  X, XCircle, LayoutGrid,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import CameraScanner from './components/CameraScanner'
+import Splash from './components/Splash'
+import { CategoryIcon, CountUp, ExcavatorArt, Ring, Spark } from './components/Art'
+import RepairView from './views/Repair'
+import NotificationsView from './views/Notifications'
+import MoreView from './views/More'
+import { conditionLabels, dateLabel, isRepair, statusLabels } from './lib/shared'
+import type { Condition, Employee, EventRecord, RepairRecord, ToolItem, ToolStatus } from './lib/shared'
 import { deleteToolPhoto, getToolPhoto, saveToolPhoto } from './lib/toolPhotos'
 
-type Page = 'dashboard' | 'issue' | 'return' | 'inventory' | 'employees' | 'history' | 'sync' | 'settings'
-type ToolStatus = 'available' | 'issued' | 'overdue' | 'damaged' | 'lost' | 'maintenance' | 'retired'
-type Condition = 'good' | 'damaged' | 'maintenance'
-type Employee = { id: string; name: string; department: string; position: string; barcode: string; active: boolean }
-type ToolItem = { id: string; code: string; name: string; category: string; status: ToolStatus; holderId?: string; photoKey?: string }
-type EventRecord = { id: number; type: 'Олголт' | 'Буцаалт'; date: string; employeeId: string; toolIds: string[]; condition?: string }
-type DemoData = { version: 1; tools: ToolItem[]; employees: Employee[]; events: EventRecord[]; categories: string[]; pendingCount: number; lastSync: string }
+type Page = 'dashboard' | 'issue' | 'return' | 'repair' | 'inventory' | 'employees' | 'history' | 'sync' | 'settings' | 'notifications' | 'more'
+type DemoData = { version: 1; tools: ToolItem[]; employees: Employee[]; events: EventRecord[]; repairs: RepairRecord[]; categories: string[]; pendingCount: number; lastSync: string }
 type ScanTarget = 'employee'
 type ToolPhotoChange = { file?: File; remove: boolean }
 
@@ -56,6 +58,17 @@ const initialEvents: EventRecord[] = [
   { id: 4, type: 'Буцаалт', date: '2026-10-12T17:30:00', employeeId: 'EMP-1183', toolIds: ['t4'], condition: 'Хэвийн' },
   { id: 5, type: 'Олголт', date: '2026-10-12T16:10:00', employeeId: 'EMP-1091', toolIds: ['t5'] },
 ]
+
+const initialRepairs: RepairRecord[] = [
+  { id: 9001, toolId: 't8', kind: 'Элэгдэл / үйлчилгээ', note: 'Лазерын тохиргоо, шалгалт тохируулга хийх', date: '2026-10-11T10:20:00', status: 'open' },
+  { id: 9002, toolId: 't9', kind: 'Механик гэмтэл', note: 'Дискний бэхэлгээний цоож эвдэрсэн', date: '2026-10-12T14:05:00', status: 'open' },
+  { id: 9000, toolId: 't5', kind: 'Элэгдэл / үйлчилгээ', note: 'Бариулын бэхэлгээг сольсон', date: '2026-10-05T09:10:00', status: 'done', doneDate: '2026-10-06T16:30:00' },
+]
+
+function normalizeRepairs(saved: unknown, tools: readonly ToolItem[]): RepairRecord[] {
+  if (Array.isArray(saved)) return saved.filter(isRepair)
+  return initialRepairs.filter(item => tools.some(tool => tool.id === item.toolId)).map(item => ({ ...item }))
+}
 
 const demoStorageKey = 'minetool-manager.demo.v1'
 
@@ -131,6 +144,7 @@ function freshDemoData(): DemoData {
     tools: initialTools.map(tool => ({ ...tool })),
     employees: initialEmployees.map(employee => ({ ...employee })),
     events: initialEvents.map(event => ({ ...event, toolIds: [...event.toolIds] })),
+    repairs: initialRepairs.map(item => ({ ...item })),
     categories: normalizeCategories(undefined, initialTools),
     pendingCount: 3,
     lastSync: '2026-10-13 08:42',
@@ -151,7 +165,7 @@ function readDemoData(): DemoData {
       || typeof parsed.lastSync !== 'string') return freshDemoData()
     const data = parsed as DemoData
     const cleanedTools = data.tools.map(stripLegacyQr)
-    return { ...data, tools: cleanedTools, categories: normalizeCategories(parsed.categories, cleanedTools) }
+    return { ...data, tools: cleanedTools, categories: normalizeCategories(parsed.categories, cleanedTools), repairs: normalizeRepairs(parsed.repairs, cleanedTools) }
   } catch {
     return freshDemoData()
   }
@@ -159,8 +173,10 @@ function readDemoData(): DemoData {
 
 const pages: { id: Page; label: string; icon: LucideIcon; group: string }[] = [
   { id: 'dashboard', label: 'Хянах самбар', icon: Home, group: 'ҮНДСЭН' },
+  { id: 'notifications', label: 'Мэдэгдэл', icon: Bell, group: 'ҮНДСЭН' },
   { id: 'issue', label: 'Багаж олгох', icon: ArrowDownToLine, group: 'ҮЙЛ АЖИЛЛАГАА' },
   { id: 'return', label: 'Багаж буцаах', icon: ArrowLeftRight, group: 'ҮЙЛ АЖИЛЛАГАА' },
+  { id: 'repair', label: 'Засвар үйлчилгээ', icon: ToolCase, group: 'ҮЙЛ АЖИЛЛАГАА' },
   { id: 'inventory', label: 'Багажны бүртгэл', icon: Boxes, group: 'БҮРТГЭЛ' },
   { id: 'employees', label: 'Ажилтнууд', icon: Users, group: 'БҮРТГЭЛ' },
   { id: 'history', label: 'Түүх ба тайлан', icon: BarChart3, group: 'ТАЙЛАН' },
@@ -168,22 +184,26 @@ const pages: { id: Page; label: string; icon: LucideIcon; group: string }[] = [
   { id: 'settings', label: 'Тохиргоо', icon: Settings, group: 'СИСТЕМ' },
 ]
 
-const statusLabels: Record<ToolStatus, string> = {
-  available: 'Бэлэн', issued: 'Олгосон', overdue: 'Хугацаа хэтэрсэн', damaged: 'Гэмтэлтэй', lost: 'Алдагдсан', maintenance: 'Засварт', retired: 'Ашиглалтаас хассан',
-}
-const conditionLabels: Record<Condition, string> = { good: 'Хэвийн', damaged: 'Гэмтэлтэй', maintenance: 'Засвар шаардлагатай' }
-const dateLabel = (date: string) => new Intl.DateTimeFormat('mn-MN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date))
+const mobileTabs: { id: Page; label: string; icon: LucideIcon; match: Page[]; center?: boolean }[] = [
+  { id: 'dashboard', label: 'Нүүр', icon: Home, match: ['dashboard'] },
+  { id: 'inventory', label: 'Багаж', icon: Boxes, match: ['inventory'] },
+  { id: 'issue', label: 'Олгох', icon: ArrowDownToLine, match: ['issue', 'return'], center: true },
+  { id: 'repair', label: 'Засвар', icon: ToolCase, match: ['repair'] },
+  { id: 'more', label: 'Бусад', icon: LayoutGrid, match: ['more', 'notifications', 'employees', 'history', 'sync', 'settings'] },
+]
+
+const weekdayShort = ['Ням', 'Дав', 'Мяг', 'Лха', 'Пүр', 'Баа', 'Бям']
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [demoData, setDemoData] = useState<DemoData>(() => readDemoData())
-  const { tools, employees, events, categories, pendingCount, lastSync } = demoData
+  const { tools, employees, events, repairs, categories, pendingCount, lastSync } = demoData
+  const [entered, setEntered] = useState(() => { try { return window.sessionStorage.getItem('minetool.entered') === '1' } catch { return false } })
   const [storageAvailable, setStorageAvailable] = useState(true)
   const [toolPhotoUrls, setToolPhotoUrls] = useState<Record<string, string>>({})
   const [photoViewerToolId, setPhotoViewerToolId] = useState<string | null>(null)
   const [online, setOnline] = useState(navigator.onLine)
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scannerTarget, setScannerTarget] = useState<ScanTarget | null>(null)
   const [inventorySearch, setInventorySearch] = useState('')
   const [inventoryStatus, setInventoryStatus] = useState('all')
@@ -291,7 +311,7 @@ function App() {
   })
 
   const showToast = (text: string, error = false) => setToast({ text, error })
-  const changePage = (next: Page) => { setScannerTarget(null); setPage(next); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const changePage = (next: Page) => { setScannerTarget(null); setPage(next); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const employeeById = (id?: string) => employees.find(employee => employee.id === id)
   const addCategory = (input: string): { name?: string; error?: string } => {
     const name = cleanCategoryName(input)
@@ -310,12 +330,13 @@ function App() {
     setDemoData(current => ({ ...current, categories: current.categories.filter(item => item !== name) }))
     return {}
   }
-  const registerEvent = (type: EventRecord['type'], employeeId: string, toolIds: string[], condition?: string, updateTools?: (current: ToolItem[]) => ToolItem[]) => {
+  const registerEvent = (type: EventRecord['type'], employeeId: string, toolIds: string[], condition?: string, updateTools?: (current: ToolItem[]) => ToolItem[], repair?: RepairRecord) => {
     const event: EventRecord = { id: Date.now(), type, date: new Date().toISOString(), employeeId, toolIds: [...toolIds], condition }
     setDemoData(current => ({
       ...current,
       tools: updateTools ? updateTools(current.tools) : current.tools,
       events: [event, ...current.events],
+      repairs: repair ? [repair, ...current.repairs] : current.repairs,
       pendingCount: current.pendingCount + 1,
     }))
   }
@@ -359,7 +380,11 @@ function App() {
     if (!tool || !tool.holderId || !['issued', 'overdue'].includes(tool.status)) return showToast('Буцаах боломжтой олгосон багаж сонгоно уу.', true)
     if (!returnEmployeeConfirmed || !returnStaffConfirmed) return showToast('Ажилтан болон агуулахын ажилтны баталгаажуулалт шаардлагатай.', true)
     const nextStatus: ToolStatus = returnCondition === 'good' ? 'available' : returnCondition === 'damaged' ? 'damaged' : 'maintenance'
-    registerEvent('Буцаалт', tool.holderId, [tool.id], conditionLabels[returnCondition], current => current.map(item => item.id === tool.id ? { ...item, status: nextStatus, holderId: undefined } : item))
+    const repair: RepairRecord | undefined = nextStatus === 'available' ? undefined : {
+      id: Date.now() + 1, toolId: tool.id, kind: nextStatus === 'damaged' ? 'Механик гэмтэл' : 'Элэгдэл / үйлчилгээ',
+      note: 'Буцаалтын үед бүртгэсэн', date: new Date().toISOString(), status: 'open',
+    }
+    registerEvent('Буцаалт', tool.holderId, [tool.id], conditionLabels[returnCondition], current => current.map(item => item.id === tool.id ? { ...item, status: nextStatus, holderId: undefined } : item), repair)
     showToast(`${tool.code} багажийг буцаалтаар бүртгэлээ. Демо өгөгдөл шинэчлэгдсэн.`)
     resetReturn()
   }
@@ -373,6 +398,37 @@ function App() {
     setScannerTarget(null); setReturnQuery(''); setReturnCategory('all'); setReturnToolId('')
     setReturnCondition('good'); setReturnEmployeeConfirmed(false); setReturnStaffConfirmed(false)
   }
+
+  const requestRepair = (toolId: string, kind: string, note: string): string | null => {
+    const tool = tools.find(item => item.id === toolId)
+    if (!tool) return 'Багаж бүртгэлээс олдсонгүй.'
+    if (tool.status !== 'available' && tool.status !== 'damaged') return 'Зөвхөн бэлэн эсвэл гэмтэлтэй багажийг засварт илгээнэ.'
+    const record: RepairRecord = { id: Date.now(), toolId, kind, note, date: new Date().toISOString(), status: 'open' }
+    setDemoData(current => ({
+      ...current,
+      tools: current.tools.map(item => item.id === toolId ? { ...item, status: 'maintenance' } : item),
+      repairs: [record, ...current.repairs],
+      pendingCount: current.pendingCount + 1,
+    }))
+    showToast(`${tool.name} засварт илгээгдлээ.`)
+    return null
+  }
+
+  const finishRepair = (toolId: string) => {
+    const tool = tools.find(item => item.id === toolId)
+    if (!tool || (tool.status !== 'maintenance' && tool.status !== 'damaged')) return
+    const doneDate = new Date().toISOString()
+    setDemoData(current => ({
+      ...current,
+      tools: current.tools.map(item => item.id === toolId ? { ...item, status: 'available' } : item),
+      repairs: current.repairs.map(item => item.toolId === toolId && item.status === 'open' ? { ...item, status: 'done', doneDate } : item),
+      pendingCount: current.pendingCount + 1,
+    }))
+    showToast(`${tool.name} засвар дууслаа. Багаж бэлэн боллоо.`)
+  }
+
+  const enterApp = () => { try { window.sessionStorage.setItem('minetool.entered', '1') } catch { /* санах ой хаалттай */ } setEntered(true) }
+  const leaveApp = () => { try { window.sessionStorage.removeItem('minetool.entered') } catch { /* санах ой хаалттай */ } setPage('dashboard'); setEntered(false) }
 
   const exportCsv = () => {
     const rows = [
@@ -391,17 +447,32 @@ function App() {
     showToast('Демо төлөв шинэчлэгдлээ. Сервертэй холбогдоогүй тул бодит өгөгдөл илгээгээгүй.')
   }
 
-  const pageTitle = pages.find(item => item.id === page)?.label ?? 'Хянах самбар'
+  const pageTitle = pages.find(item => item.id === page)?.label ?? (page === 'more' ? 'Профайл' : 'Хянах самбар')
   const issuedCount = tools.filter(tool => tool.status === 'issued' || tool.status === 'overdue').length
   const overdueCount = tools.filter(tool => tool.status === 'overdue').length
   const damagedCount = tools.filter(tool => tool.status === 'damaged' || tool.status === 'lost').length
   const availableCount = tools.filter(tool => tool.status === 'available').length
+  const attentionCount = tools.filter(tool => ['overdue', 'damaged', 'lost', 'maintenance'].includes(tool.status)).length
+  const availablePercent = tools.length ? Math.round((availableCount / tools.length) * 100) : 0
+  const chartDays = (() => {
+    const last = events.reduce((max, event) => (event.date > max ? event.date : max), '')
+    const end = last ? new Date(last) : new Date()
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(end)
+      day.setDate(end.getDate() - (6 - index))
+      const key = day.toLocaleDateString('sv-SE')
+      return { label: weekdayShort[day.getDay()], count: events.filter(event => new Date(event.date).toLocaleDateString('sv-SE') === key).length }
+    })
+  })()
+  const openFiltered = (status: string) => { setInventoryStatus(status); setInventoryPage(1); changePage('inventory') }
   const activeReturnTool = tools.find(tool => tool.id === returnToolId)
   const selectedDetailsTool = tools.find(tool => tool.id === toolDetailsId)
   const activeReturnIssue = activeReturnTool && events.find(event => event.type === 'Олголт' && event.toolIds.includes(activeReturnTool.id))
   const issueCandidates = tools.filter(tool => tool.status === 'available' && toolMatches(tool, issueToolQuery, issueCategory))
   const returnCandidates = tools.filter(tool => (tool.status === 'issued' || tool.status === 'overdue') && tool.holderId
     && toolMatches(tool, returnQuery, returnCategory, employeeById(tool.holderId)?.name ?? ''))
+
+  if (!entered) return <Splash onEnter={enterApp} />
 
   return (
     <div className="app-shell">
@@ -437,6 +508,9 @@ function App() {
                         <span>{item.label}</span>
                         {item.id === 'sync' && pendingCount > 0 && (
                           <i>{pendingCount}</i>
+                        )}
+                        {item.id === 'notifications' && attentionCount > 0 && (
+                          <i>{attentionCount}</i>
                         )}
                       </button>
                     )
@@ -477,10 +551,10 @@ function App() {
             <button
               className="icon-button notification-button"
               aria-label="Мэдэгдэл"
-              onClick={() => showToast('Одоогоор шинэ мэдэгдэл алга.')}
+              onClick={() => changePage('notifications')}
             >
-              <Bell size={18} />
-              <i />
+              <Bell size={20} />
+              {attentionCount > 0 && <i>{attentionCount}</i>}
             </button>
             <div className="top-user">
               <div className="user-avatar">АС</div>
@@ -493,6 +567,7 @@ function App() {
         </header>
 
         <motion.div className="page-content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+          {page !== 'dashboard' && page !== 'more' && (
           <div className="page-heading">
             <div>
               <div className="eyebrow">УУРХАЙН АГУУЛАХ · ДЕМО ӨГӨГДӨЛ</div>
@@ -509,78 +584,63 @@ function App() {
               </div>
             )}
           </div>
+          )}
 
           {page === 'dashboard' && (
-            <section className="page-stack">
-              <div
-                className={`demo-banner ${storageAvailable ? '' : 'storage-warning'}`}
-              >
-                <div className="demo-banner-icon">
-                  <CircleHelp size={19} />
-                </div>
+            <section className="dash">
+              <div className="dash-greet">
+                <div className="greet-avatar"><HardHat size={26} /></div>
                 <div>
-                  <strong>
-                    {storageAvailable
-                      ? 'Демо орчин'
-                      : 'Хөтчийн хадгалалт боломжгүй'}
-                  </strong>
-                  <span>
-                    {storageAvailable
-                      ? 'Жишээ ба өөрчилсөн өгөгдөл энэ төхөөрөмжийн хөтчид хадгалагдана. Серверт илгээгдэхгүй.'
-                      : 'Хөтчийн санах ой хаалттай эсвэл дүүрсэн байна. Шинэчлэлтүүд хуудсыг дахин ачаалахад хадгалагдахгүй.'}
-                  </span>
+                  <span>Сайн байна уу,</span>
+                  <strong>Агуулахын ажилтан 👋</strong>
                 </div>
                 <span className="demo-badge">ДЕМО</span>
               </div>
-              <div className="stat-grid">
-                <StatCard
-                  label="Нийт бүртгэлтэй"
-                  value={tools.length}
-                  unit="багаж"
-                  icon={Boxes}
-                  tone="navy"
-                  note="Бүх ангилал"
-                />
-                <StatCard
-                  label="Бэлэн байгаа"
-                  value={availableCount}
-                  unit="багаж"
-                  icon={PackageCheck}
-                  tone="green"
-                  note="Олгоход бэлэн"
-                />
-                <StatCard
-                  label="Олгогдсон"
-                  value={issuedCount}
-                  unit="багаж"
-                  icon={ArrowDownToLine}
-                  tone="blue"
-                  note="Ажилтанд байгаа"
-                />
-                <StatCard
-                  label="Хугацаа хэтэрсэн"
-                  value={overdueCount}
-                  unit="багаж"
-                  icon={Clock3}
-                  tone="orange"
-                  note="Буцаах хугацаа хэтэрсэн"
-                />
-                <StatCard
-                  label="Гэмтэлтэй / алдагдсан"
-                  value={damagedCount}
-                  unit="багаж"
-                  icon={AlertTriangle}
-                  tone="red"
-                  note="Анхаарах шаардлагатай"
-                />
-                <StatCard
-                  label="Илгээхээр хүлээгдэж буй"
-                  value={pendingCount}
-                  unit="үйлдэл"
-                  icon={Cloud}
-                  tone="gray"
-                  note="Демо дараалал"
-                />
+              {!storageAvailable && (
+                <div className="demo-banner storage-warning dash-warn">
+                  <div className="demo-banner-icon"><CircleHelp size={19} /></div>
+                  <div>
+                    <strong>Хөтчийн хадгалалт боломжгүй</strong>
+                    <span>Шинэчлэлтүүд хуудсыг дахин ачаалахад хадгалагдахгүй.</span>
+                  </div>
+                </div>
+              )}
+              <article className="hero-card">
+                <div className="hero-copy">
+                  <span>Нийт багаж</span>
+                  <strong><CountUp value={tools.length} /></strong>
+                  <em>↑ {availableCount} бэлэн</em>
+                </div>
+                <ExcavatorArt className="hero-art" />
+              </article>
+              <div className="tile-row">
+                <button className="tile green" onClick={() => openFiltered('available')}>
+                  <span className="tile-icon"><PackageCheck size={22} /></span>
+                  <strong>{availableCount}</strong><small>Бэлэн</small>
+                </button>
+                <button className="tile blue" onClick={() => openFiltered('issued')}>
+                  <span className="tile-icon"><ArrowDownToLine size={22} /></span>
+                  <strong>{issuedCount}</strong><small>Олгосон</small>
+                </button>
+                <button className="tile orange" onClick={() => changePage('notifications')}>
+                  <span className="tile-icon"><AlertTriangle size={22} /></span>
+                  <strong>{attentionCount}</strong><small>Анхаарах</small>
+                </button>
+              </div>
+              <div className="quick-row">
+                <button className="button primary big" onClick={() => changePage('issue')}><ArrowDownToLine size={20} /> Багаж олгох</button>
+                <button className="button outline big" onClick={() => changePage('return')}><ArrowLeftRight size={20} /> Багаж буцаах</button>
+              </div>
+              <h2 className="dash-h">Өнөөдрийн тойм</h2>
+              <div className="dash-cards">
+                <section className="panel ring-card">
+                  <Ring value={availablePercent} size={112} label="Бэлэн" />
+                  <p>{availableCount} / {tools.length} багаж олгоход бэлэн</p>
+                </section>
+                <section className="panel spark-card">
+                  <div className="spark-head"><span>Олголт ба буцаалт</span><small>Сүүлийн 7 өдөр</small></div>
+                  <Spark values={chartDays.map(day => day.count)} labels={chartDays.map(day => day.label)} />
+                </section>
               </div>
               <div className="dashboard-grid">
                 <section className="panel activity-panel">
@@ -652,6 +712,13 @@ function App() {
                 </section>
               </div>
             </section>
+          )}
+
+          {(page === 'issue' || page === 'return') && (
+            <div className="seg switch-seg" role="tablist">
+              <button role="tab" aria-selected={page === 'issue'} className={page === 'issue' ? 'active' : ''} onClick={() => changePage('issue')}><ArrowDownToLine size={17} /> Олгох</button>
+              <button role="tab" aria-selected={page === 'return'} className={page === 'return' ? 'active' : ''} onClick={() => changePage('return')}><ArrowLeftRight size={17} /> Буцаах</button>
+            </div>
           )}
 
           {page === 'issue' && (
@@ -759,7 +826,7 @@ function App() {
                           onChange={() => toggleIssueTool(tool.id)}
                         />
                         <span className="tool-symbol">
-                          <ToolCase size={17} />
+                          <CategoryIcon category={tool.category} size={19} />
                         </span>
                         <span className="pick-tool-info">
                           <strong>{tool.name}</strong>
@@ -920,7 +987,7 @@ function App() {
                           onChange={() => selectReturnTool(tool)}
                         />
                         <span className="tool-symbol">
-                          <ToolCase size={17} />
+                          <CategoryIcon category={tool.category} size={19} />
                         </span>
                         <span className="pick-tool-info">
                           <strong>{tool.name}</strong>
@@ -948,7 +1015,7 @@ function App() {
                     <div className="panel condition-panel">
                       <div className="return-tool-card">
                         <span className="tool-symbol large">
-                          <ToolCase size={20} />
+                          <CategoryIcon category={activeReturnTool.category} size={22} />
                         </span>
                         <div>
                           <strong>{activeReturnTool.name}</strong>
@@ -1101,8 +1168,47 @@ function App() {
             </section>
           )}
 
+          {page === 'repair' && (
+            <RepairView tools={tools} repairs={repairs} onRequest={requestRepair} onFinish={finishRepair} />
+          )}
+
+          {page === 'notifications' && (
+            <NotificationsView
+              tools={tools}
+              events={events}
+              employees={employees}
+              pendingCount={pendingCount}
+              onGo={(target) => (target === 'inventory' ? openFiltered('all') : changePage(target))}
+            />
+          )}
+
+          {page === 'more' && (
+            <MoreView
+              toolsCount={tools.length}
+              availablePercent={availablePercent}
+              eventsCount={events.length}
+              pendingCount={pendingCount}
+              onGo={changePage}
+              onLogout={leaveApp}
+            />
+          )}
+
           {page === 'inventory' && (
             <section className="panel data-panel">
+              <div className="pill-row" role="tablist" aria-label="Багажийн төлөв">
+                {([
+                  ['all', 'Бүгд', tools.length],
+                  ['available', 'Бэлэн', availableCount],
+                  ['issued', 'Олгосон', tools.filter(tool => tool.status === 'issued').length],
+                  ['overdue', 'Хугацаа хэтэрсэн', overdueCount],
+                  ['maintenance', 'Засварт', tools.filter(tool => tool.status === 'maintenance').length],
+                  ['damaged', 'Гэмтэлтэй', tools.filter(tool => tool.status === 'damaged').length],
+                ] as [string, string, number][]).map(([value, label, count]) => (
+                  <button key={value} role="tab" aria-selected={inventoryStatus === value} className={`pill ${inventoryStatus === value ? 'active' : ''}`} onClick={() => { setInventoryStatus(value); setInventoryPage(1) }}>
+                    {label} <b>{count}</b>
+                  </button>
+                ))}
+              </div>
               <div className="table-toolbar">
                 <div className="input-with-icon search-input">
                   <Search size={17} />
@@ -1132,31 +1238,12 @@ function App() {
                   </select>
                   <ChevronDown size={14} />
                 </div>
-                <div className="filter-control">
-                  <SlidersHorizontal size={16} />
-                  <select
-                    value={inventoryStatus}
-                    onChange={(event) => {
-                      setInventoryStatus(event.target.value)
-                      setInventoryPage(1)
-                    }}
-                    aria-label="Багажийн төлөв"
-                  >
-                    <option value="all">Бүх төлөв</option>
-                    {Object.entries(statusLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} />
-                </div>
                 <span className="results-count">
                   {filteredTools.length} багаж
                 </span>
               </div>
               <div className="table-scroll">
-                <table>
+                <table className="tool-table">
                   <thead>
                     <tr>
                       <th>БАГАЖ</th>
@@ -1174,6 +1261,7 @@ function App() {
                         <td>
                           <div className="table-tool">
                             <ToolPhotoThumb
+                              category={tool.category}
                               src={toolPhotoUrls[tool.id]}
                               alt={`${tool.name} зураг`}
                               onClick={toolPhotoUrls[tool.id] ? () => setPhotoViewerToolId(tool.id) : undefined}
@@ -1290,7 +1378,7 @@ function App() {
                   </span>
                 </div>
                 <div className="table-scroll">
-                  <table>
+                  <table className="emp-table">
                     <thead>
                       <tr>
                         <th>АЖИЛТАН</th>
@@ -1394,7 +1482,7 @@ function App() {
                 Демо түүх
               </div>
               <div className="table-scroll">
-                <table>
+                <table className="hist-table">
                   <thead>
                     <tr>
                       <th>ОГНОО, ЦАГ</th>
@@ -1496,7 +1584,7 @@ function App() {
                     <ArrowLeftRight size={17} /> Демо төлөв шинэчлэх
                   </button>
                 </section>
-                <section className="panel">
+                <section className="panel queue-panel">
                   <div className="panel-heading">
                     <div>
                       <h2>Хүлээгдэж буй үйлдлүүд</h2>
@@ -1646,61 +1734,21 @@ function App() {
       </main>
 
       <nav className="mobile-nav" aria-label="Гар утасны цэс">
-        {(['dashboard', 'issue', 'return', 'inventory'] as Page[]).map((id) => {
-          const item = pages.find((navItem) => navItem.id === id)!
-          const Icon = item.icon
+        {mobileTabs.map((tab) => {
+          const Icon = tab.icon
           return (
             <button
-              key={id}
-              className={page === id ? 'active' : ''}
-              onClick={() => changePage(id)}
+              key={tab.id}
+              className={`${tab.match.includes(page) ? 'active' : ''} ${tab.center ? 'center' : ''}`}
+              aria-current={tab.match.includes(page) ? 'page' : undefined}
+              onClick={() => changePage(tab.id)}
             >
-              <Icon size={19} />
-              <span>
-                {id === 'dashboard'
-                  ? 'Самбар'
-                  : id === 'inventory'
-                    ? 'Бүртгэл'
-                    : item.label}
-              </span>
+              <span className="nav-ico"><Icon size={tab.center ? 24 : 22} /></span>
+              <span className="nav-txt">{tab.label}</span>
             </button>
           )
         })}
-        <button
-          className={mobileMenuOpen ? 'active' : ''}
-          onClick={() => setMobileMenuOpen((value) => !value)}
-        >
-          <Menu size={20} />
-          <span>Бусад</span>
-        </button>
       </nav>
-      {mobileMenuOpen && (
-        <>
-          <button
-            className="menu-scrim"
-            aria-label="Цэс хаах"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="mobile-more-menu">
-            {pages
-              .filter(
-                (item) =>
-                  !['dashboard', 'issue', 'return', 'inventory'].includes(
-                    item.id,
-                  ),
-              )
-              .map((item) => {
-                const Icon = item.icon
-                return (
-                  <button key={item.id} onClick={() => changePage(item.id)}>
-                    <Icon size={18} />
-                    {item.label}
-                  </button>
-                )
-              })}
-          </div>
-        </>
-      )}
       {scannerTarget && (
         <CameraScanner
           title="Ажилтны баркод уншуулах"
@@ -1791,11 +1839,7 @@ function App() {
 }
 
 const pageDescriptions: Record<Page, string> = {
-  dashboard: 'Өнөөдрийн багаж хэрэгслийн бүртгэлийн тойм', issue: 'Ажилтанд багаж олгох үйл явцыг баталгаажуулна', return: 'Багаж хүлээн авч нөхцөлийг бүртгэнэ', inventory: 'Багажийн бүртгэл, төлөвийг удирдана', employees: 'Ажилтны жишээ бүртгэл, баркодын мэдээлэл', history: 'Олголт, буцаалтын үйл ажиллагааны тайлан', sync: 'Офлайн төлөв болон демо үйлдлийн дараалал', settings: 'Аппликейшний одоогийн тохиргоо ба холболтууд',
-}
-
-function StatCard({ label, value, unit, icon: Icon, tone, note }: { label: string; value: number; unit: string; icon: LucideIcon; tone: string; note: string }) {
-  return <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 240, damping: 20 }}><div className={`stat-icon ${tone}`}><Icon size={19} /></div><span className="stat-label">{label}</span><div className="stat-value">{value}<small>{unit}</small></div><span className="stat-note">{note}</span></motion.article>
+  dashboard: 'Өнөөдрийн багаж хэрэгслийн бүртгэлийн тойм', issue: 'Ажилтанд багаж олгох үйл явцыг баталгаажуулна', return: 'Багаж хүлээн авч нөхцөлийг бүртгэнэ', inventory: 'Багажийн бүртгэл, төлөвийг удирдана', employees: 'Ажилтны жишээ бүртгэл, баркодын мэдээлэл', history: 'Олголт, буцаалтын үйл ажиллагааны тайлан', sync: 'Офлайн төлөв болон демо үйлдлийн дараалал', settings: 'Аппликейшний одоогийн тохиргоо ба холболтууд', repair: 'Засварын хүсэлт гаргаж, явцыг хянана', notifications: 'Анхаарах зүйлс болон сүүлийн мэдээ', more: '',
 }
 
 function StatusBadge({ status }: { status: ToolStatus }) { return <span className={`badge ${status}`}><i />{statusLabels[status]}</span> }
@@ -1804,8 +1848,8 @@ function EmployeePreview({ employee }: { employee: Employee }) {
   return <div className="employee-preview"><span className="person-avatar large-avatar">{employee.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span><div><strong>{employee.name}</strong><span>{employee.id} · {employee.position}</span><small>{employee.department}</small></div><span className={`badge ${employee.active ? 'active-status' : 'inactive-status'}`}><i />{employee.active ? 'Идэвхтэй' : 'Идэвхгүй'}</span></div>
 }
 
-function ToolPhotoThumb({ src, alt, onClick }: { src?: string; alt: string; onClick?: () => void }) {
-  const contents = src ? <img src={src} alt={alt} loading="lazy" /> : <ImageIcon size={18} />
+function ToolPhotoThumb({ src, alt, category, onClick }: { src?: string; alt: string; category?: string; onClick?: () => void }) {
+  const contents = src ? <img src={src} alt={alt} loading="lazy" /> : category ? <CategoryIcon category={category} size={22} /> : <ImageIcon size={18} />
   if (onClick) return <button type="button" className="tool-photo-thumb clickable" aria-label={`${alt} томоор харах`} onClick={onClick}>{contents}</button>
   return <span className="tool-photo-thumb">{contents}</span>
 }
