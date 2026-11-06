@@ -572,11 +572,7 @@ function App() {
             <div>
               <div className="eyebrow">УУРХАЙН АГУУЛАХ · ДЕМО ӨГӨГДӨЛ</div>
               <h1>{pageTitle}</h1>
-              <p>
-                {page === 'dashboard'
-                  ? 'Өнөөдрийн багаж хэрэгслийн бүртгэлийн тойм'
-                  : pageDescriptions[page]}
-              </p>
+              <p>{pageDescriptions[page]}</p>
             </div>
             {page === 'inventory' && (
               <div className="page-heading-actions">
