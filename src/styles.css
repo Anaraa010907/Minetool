@@ -38,7 +38,7 @@
   --radius: 6px;
   --radius-sm: 4px;
   --font: 'Golos Text', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-label: 'IBM Plex Sans Condensed', 'Roboto Condensed', 'Arial Narrow', sans-serif;
+  --font-label: 'Fira Sans Condensed', 'Roboto Condensed', 'Arial Narrow', sans-serif;
   --tabbar-h: 64px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
