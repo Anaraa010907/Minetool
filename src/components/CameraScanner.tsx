@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { AlertTriangle, Camera, CameraOff, LoaderCircle, QrCode, X } from 'lucide-react'
+import { AlertTriangle, Camera, CameraOff, LoaderCircle, ScanBarcode, X } from 'lucide-react'
 import type { Html5Qrcode as Html5QrcodeInstance } from 'html5-qrcode'
 
 type CameraScannerProps = {
@@ -118,6 +118,13 @@ export default function CameraScanner({ title, instruction, onDetected, onClose 
     }
   }
 
+  // Цонх нээгдмэгц камерыг асаана. Нэмэлт товч дарах шаардлагагүй.
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void startCamera() }, 0)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const close = () => {
     runRef.current += 1
     void stopCurrentScanner()
@@ -128,9 +135,9 @@ export default function CameraScanner({ title, instruction, onDetected, onClose 
     <div className="scanner-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && close()}>
       <section className="scanner-dialog" role="dialog" aria-modal="true" aria-labelledby="scanner-title">
         <div className="scanner-heading">
-          <div className="scanner-heading-icon"><QrCode size={20} /></div>
+          <div className="scanner-heading-icon"><ScanBarcode size={20} /></div>
           <div><h2 id="scanner-title">{title}</h2><p>{instruction}</p></div>
-          <button className="icon-button scanner-close" type="button" aria-label="Уншуулагч хаах" onClick={close}><X size={20} /></button>
+          <button className="icon-btn scanner-close" type="button" aria-label="Уншуулагч хаах" onClick={close}><X size={20} /></button>
         </div>
         <div className={`scanner-view ${state === 'idle' ? 'scanner-idle' : ''}`}>
           <div id={elementId} className="scanner-video" />
@@ -141,7 +148,7 @@ export default function CameraScanner({ title, instruction, onDetected, onClose 
         </div>
         <div className="scanner-footer">
           <p><CameraOff size={15} /> Камер зөвхөн энэ цонх нээлттэй үед ажиллана.</p>
-          {state === 'scanning' ? <button className="button secondary scanner-action" type="button" onClick={() => { runRef.current += 1; void stopCurrentScanner(); setState('idle') }}>Камер зогсоох</button> : <button className="button primary scanner-action" type="button" onClick={startCamera} disabled={state === 'starting'}><Camera size={17} />{state === 'starting' ? 'Холбож байна' : 'Камер асаах'}</button>}
+          {state === 'scanning' ? <button className="btn scanner-action" type="button" onClick={() => { runRef.current += 1; void stopCurrentScanner(); setState('idle') }}>Камер зогсоох</button> : <button className="btn btn-primary scanner-action" type="button" onClick={startCamera} disabled={state === 'starting'}><Camera size={17} />{state === 'starting' ? 'Холбож байна' : 'Камер асаах'}</button>}
         </div>
       </section>
     </div>

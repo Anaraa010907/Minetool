@@ -10,11 +10,27 @@ export const repairKinds = ['Механик гэмтэл', 'Цахилгааны
 export const statusLabels: Record<ToolStatus, string> = {
   available: 'Бэлэн', issued: 'Олгосон', overdue: 'Хугацаа хэтэрсэн', damaged: 'Гэмтэлтэй', lost: 'Алдагдсан', maintenance: 'Засварт', retired: 'Ашиглалтаас хассан',
 }
+export const statusOrder: ToolStatus[] = ['available', 'issued', 'overdue', 'maintenance', 'damaged', 'lost', 'retired']
 export const conditionLabels: Record<Condition, string> = { good: 'Хэвийн', damaged: 'Гэмтэлтэй', maintenance: 'Засвар шаардлагатай' }
 
-export const dateLabel = (date: string) => new Intl.DateTimeFormat('mn-MN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date))
-export const timeLabel = (date: string) => new Intl.DateTimeFormat('mn-MN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(date))
-export const dayLabel = (date: string) => new Intl.DateTimeFormat('mn-MN', { month: '2-digit', day: '2-digit' }).format(new Date(date))
+const weekdays = ['Ням', 'Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба']
+const pad = (value: number) => String(value).padStart(2, '0')
+
+// Төхөөрөмжийн хэлний тохиргооноос үл хамааран нэг ижил хэлбэрээр харуулна.
+export const dayKey = (date: string | Date) => {
+  const d = new Date(date)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+export const timeLabel = (date: string) => { const d = new Date(date); return `${pad(d.getHours())}:${pad(d.getMinutes())}` }
+export const shortDate = (date: string) => { const d = new Date(date); return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}` }
+export const dateLabel = (date: string) => `${shortDate(date)} ${timeLabel(date)}`
+export const dayHeading = (date: string) => { const d = new Date(date); return `${d.getMonth() + 1}-р сарын ${d.getDate()}, ${weekdays[d.getDay()]}` }
+export const todayHeading = () => {
+  const d = new Date()
+  return `${d.getFullYear()} оны ${d.getMonth() + 1}-р сарын ${d.getDate()}, ${weekdays[d.getDay()]} гараг`
+}
+
+export const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('')
 
 export const isRepair = (value: unknown): value is RepairRecord => {
   if (typeof value !== 'object' || value === null) return false

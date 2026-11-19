@@ -1,56 +1,46 @@
-import { BarChart3, ChevronRight, Cloud, HardHat, LogOut, Settings, Users } from 'lucide-react'
+import { Bell, ChevronRight, History, RefreshCw, Settings, Users, Wrench } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { CountUp } from '../components/Art'
 
-export type MoreTarget = 'employees' | 'history' | 'sync' | 'settings'
+export type MoreTarget = 'repair' | 'notifications' | 'employees' | 'history' | 'sync' | 'settings'
 
-export default function MoreView({ toolsCount, availablePercent, eventsCount, pendingCount, onGo, onLogout }: {
-  toolsCount: number
-  availablePercent: number
-  eventsCount: number
+export default function MoreView({ attentionCount, pendingCount, repairCount, onGo }: {
+  attentionCount: number
   pendingCount: number
+  repairCount: number
   onGo: (target: MoreTarget) => void
-  onLogout: () => void
 }) {
-  const items: { id: MoreTarget; label: string; icon: LucideIcon; badge?: number }[] = [
-    { id: 'employees', label: 'Ажилтнууд', icon: Users },
-    { id: 'history', label: 'Түүх ба тайлан', icon: BarChart3 },
-    { id: 'sync', label: 'Синхрончлол', icon: Cloud, badge: pendingCount },
-    { id: 'settings', label: 'Тохиргоо', icon: Settings },
+  const groups: { id: MoreTarget; label: string; note: string; icon: LucideIcon; badge?: number }[][] = [
+    [
+      { id: 'repair', label: 'Засвар', note: 'Засварт байгаа багаж, хүсэлт', icon: Wrench, badge: repairCount },
+      { id: 'notifications', label: 'Мэдэгдэл', note: 'Хугацаа хэтэрсэн, гэмтэлтэй багаж', icon: Bell, badge: attentionCount },
+    ],
+    [
+      { id: 'employees', label: 'Ажилтнууд', note: 'Үнэмлэхний баркод, гарт байгаа багаж', icon: Users },
+      { id: 'history', label: 'Түүх', note: 'Олголт, буцаалтын бүртгэл, CSV', icon: History },
+    ],
+    [
+      { id: 'sync', label: 'Синхрончлол', note: 'Илгээгдээгүй үйлдлүүд', icon: RefreshCw, badge: pendingCount },
+      { id: 'settings', label: 'Тохиргоо', note: 'Апп болон өгөгдлийн мэдээлэл', icon: Settings },
+    ],
   ]
   return (
-    <section className="page-stack profile">
-      <div className="profile-card">
-        <div className="profile-avatar"><HardHat size={34} strokeWidth={1.7} /></div>
-        <div>
-          <strong>Агуулахын систем</strong>
-          <span>Демо хэрэглэгч · Багаж хариуцагч</span>
+    <div className="records more">
+      {groups.map((group, index) => (
+        <div className="board menu" key={index}>
+          {group.map(item => {
+            const Icon = item.icon
+            return (
+              <button key={item.id} onClick={() => onGo(item.id)}>
+                <span className="menu-icon"><Icon size={20} /></span>
+                <span className="menu-copy"><strong>{item.label}</strong><small>{item.note}</small></span>
+                {!!item.badge && <b className="count-badge">{item.badge}</b>}
+                <ChevronRight size={18} className="menu-go" />
+              </button>
+            )
+          })}
         </div>
-      </div>
-      <div className="profile-stats">
-        <div><strong><CountUp value={toolsCount} /></strong><span>Багаж</span></div>
-        <div><strong><CountUp value={availablePercent} />%</strong><span>Бэлэн</span></div>
-        <div><strong><CountUp value={eventsCount} /></strong><span>Үйлдэл</span></div>
-      </div>
-      <div className="menu-list">
-        {items.map((item) => {
-          const Icon = item.icon
-          return (
-            <button key={item.id} onClick={() => onGo(item.id)}>
-              <Icon size={20} />
-              <span>{item.label}</span>
-              {!!item.badge && <i>{item.badge}</i>}
-              <ChevronRight size={18} />
-            </button>
-          )
-        })}
-        <button className="danger" onClick={onLogout}>
-          <LogOut size={20} />
-          <span>Гарах</span>
-          <ChevronRight size={18} />
-        </button>
-      </div>
-      <p className="profile-foot">Уурхайн багажны бүртгэл · Демо хувилбар v1.0</p>
-    </section>
+      ))}
+      <p className="footnote">MineTool, демо хувилбар. Уурхайн өгөгдлийн сантай холбогдоогүй тул өөрчлөлт зөвхөн энэ төхөөрөмжид хадгалагдана.</p>
+    </div>
   )
 }

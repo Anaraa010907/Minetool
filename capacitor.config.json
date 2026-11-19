@@ -2,6 +2,8 @@
   "appId": "mn.minetool.manager",
   "appName": "MineTool",
   "webDir": "dist",
-  "backgroundColor": "#102a43",
-  "android": { "allowMixedContent": false }
+  "backgroundColor": "#1f252c",
+  "android": {
+    "allowMixedContent": false
+  }
 }

@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
-import { AlertTriangle, ArrowDownToLine, ArrowLeftRight, Bell, Clock3, Cloud, Wrench } from 'lucide-react'
+import { useMemo } from 'react'
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Bell, ChevronRight, Clock3, Cloud, SearchX, Wrench } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { dateLabel, statusLabels } from '../lib/shared'
+import { dateLabel } from '../lib/shared'
 import type { Employee, EventRecord, ToolItem } from '../lib/shared'
 
 export type NotifyTarget = 'return' | 'inventory' | 'repair' | 'sync' | 'history'
-type Tone = 'red' | 'orange' | 'green' | 'blue'
-type Notice = { id: string; tone: Tone; icon: LucideIcon; title: string; text: string; date?: string; attention: boolean; go: NotifyTarget }
+type Tone = 'bad' | 'late' | 'fix' | 'info' | 'ok' | 'out'
+type Notice = { id: string; tone: Tone; icon: LucideIcon; title: string; text: string; date?: string; go: NotifyTarget }
 
 export default function NotificationsView({ tools, events, employees, pendingCount, onGo }: {
   tools: ToolItem[]
@@ -15,63 +15,71 @@ export default function NotificationsView({ tools, events, employees, pendingCou
   pendingCount: number
   onGo: (target: NotifyTarget) => void
 }) {
-  const [tab, setTab] = useState<'all' | 'attention'>('all')
-
-  const notices = useMemo(() => {
-    const person = (id?: string) => employees.find((employee) => employee.id === id)?.name ?? ''
-    const lastIssue = (toolId: string) => events.find((event) => event.type === 'Олголт' && event.toolIds.includes(toolId))
-    const list: Notice[] = []
-    tools.filter((tool) => tool.status === 'overdue').forEach((tool) => list.push({
-      id: `o-${tool.id}`, tone: 'red', icon: Clock3, attention: true, go: 'return',
-      title: 'Буцаах хугацаа хэтэрсэн', text: `${tool.name} · ${tool.code}${tool.holderId ? ` · ${person(tool.holderId)}` : ''}`, date: lastIssue(tool.id)?.date,
+  const { attention, recent } = useMemo(() => {
+    const person = (id?: string) => employees.find(employee => employee.id === id)?.name ?? ''
+    const lastIssue = (toolId: string) => events.find(event => event.type === 'Олголт' && event.toolIds.includes(toolId))
+    const attention: Notice[] = []
+    tools.filter(tool => tool.status === 'overdue').forEach(tool => attention.push({
+      id: `o-${tool.id}`, tone: 'late', icon: Clock3, go: 'return',
+      title: `${tool.code} буцаах хугацаа хэтэрсэн`, text: `${tool.name}, эзэмшигч ${person(tool.holderId)}`, date: lastIssue(tool.id)?.date,
     }))
-    tools.filter((tool) => tool.status === 'damaged' || tool.status === 'lost').forEach((tool) => list.push({
-      id: `d-${tool.id}`, tone: 'red', icon: AlertTriangle, attention: true, go: 'inventory',
-      title: tool.status === 'lost' ? 'Багаж алдагдсан' : 'Багаж гэмтсэн', text: `${tool.name} · ${tool.code} · ${statusLabels[tool.status]}`,
+    tools.filter(tool => tool.status === 'damaged').forEach(tool => attention.push({
+      id: `d-${tool.id}`, tone: 'bad', icon: AlertTriangle, go: 'repair',
+      title: `${tool.code} гэмтэлтэй`, text: `${tool.name}. Засварт илгээх шаардлагатай.`,
     }))
-    tools.filter((tool) => tool.status === 'maintenance').forEach((tool) => list.push({
-      id: `m-${tool.id}`, tone: 'orange', icon: Wrench, attention: true, go: 'repair',
-      title: 'Засвар хийгдэж байна', text: `${tool.name} · ${tool.code}`,
+    tools.filter(tool => tool.status === 'lost').forEach(tool => attention.push({
+      id: `l-${tool.id}`, tone: 'bad', icon: SearchX, go: 'inventory',
+      title: `${tool.code} алдагдсан`, text: tool.name,
     }))
-    if (pendingCount > 0) list.push({
-      id: 'sync', tone: 'blue', icon: Cloud, attention: false, go: 'sync',
-      title: 'Синхрончлол хүлээгдэж байна', text: `${pendingCount} демо үйлдэл илгээгдээгүй`,
+    tools.filter(tool => tool.status === 'maintenance').forEach(tool => attention.push({
+      id: `m-${tool.id}`, tone: 'fix', icon: Wrench, go: 'repair',
+      title: `${tool.code} засварт байна`, text: tool.name,
+    }))
+    const recent: Notice[] = []
+    if (pendingCount > 0) recent.push({
+      id: 'sync', tone: 'info', icon: Cloud, go: 'sync',
+      title: `${pendingCount} үйлдэл илгээгдээгүй`, text: 'Уурхайн сервертэй холбогдоход илгээгдэнэ.',
     })
-    events.slice(0, 6).forEach((event) => {
-      const names = event.toolIds.map((id) => tools.find((tool) => tool.id === id)?.name ?? id).join(', ')
-      list.push({
-        id: `e-${event.id}`, tone: event.type === 'Олголт' ? 'orange' : 'green', icon: event.type === 'Олголт' ? ArrowDownToLine : ArrowLeftRight, attention: false, go: 'history',
-        title: event.type === 'Олголт' ? 'Багаж олгогдлоо' : 'Багаж буцаагдлаа', text: `${names} · ${person(event.employeeId)}`, date: event.date,
+    events.slice(0, 8).forEach(event => {
+      const names = event.toolIds.map(id => tools.find(tool => tool.id === id)?.name ?? id).join(', ')
+      const out = event.type === 'Олголт'
+      recent.push({
+        id: `e-${event.id}`, tone: out ? 'out' : 'ok', icon: out ? ArrowUpFromLine : ArrowDownToLine, go: 'history',
+        title: names, text: out ? `${person(event.employeeId)} авсан` : `${person(event.employeeId)} буцаасан`, date: event.date,
       })
     })
-    return list
+    return { attention, recent }
   }, [tools, events, employees, pendingCount])
 
-  const shown = tab === 'attention' ? notices.filter((notice) => notice.attention) : notices
-  const attentionTotal = notices.filter((notice) => notice.attention).length
+  const renderList = (items: Notice[]) => (
+    <div className="board notice-list">
+      {items.map(notice => {
+        const Icon = notice.icon
+        return (
+          <button key={notice.id} className={`notice t-${notice.tone}`} onClick={() => onGo(notice.go)}>
+            <span className="notice-icon"><Icon size={19} /></span>
+            <span className="notice-copy">
+              <strong>{notice.title}</strong>
+              <span>{notice.text}</span>
+              {notice.date && <small>{dateLabel(notice.date)}</small>}
+            </span>
+            <ChevronRight size={18} className="notice-go" />
+          </button>
+        )
+      })}
+    </div>
+  )
 
   return (
-    <section className="page-stack">
-      <div className="seg" role="tablist">
-        <button role="tab" aria-selected={tab === 'all'} className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>Бүгд ({notices.length})</button>
-        <button role="tab" aria-selected={tab === 'attention'} className={tab === 'attention' ? 'active' : ''} onClick={() => setTab('attention')}>Анхаарах ({attentionTotal})</button>
-      </div>
-      <div className="notice-list">
-        {shown.map((notice) => {
-          const Icon = notice.icon
-          return (
-            <button key={notice.id} className={`notice ${notice.tone}`} onClick={() => onGo(notice.go)}>
-              <span className="notice-icon"><Icon size={20} /></span>
-              <span className="notice-copy">
-                <strong>{notice.title}</strong>
-                <span>{notice.text}</span>
-                {notice.date && <small>{dateLabel(notice.date)}</small>}
-              </span>
-            </button>
-          )
-        })}
-        {!shown.length && <div className="empty-state"><Bell size={18} /> Шинэ мэдэгдэл алга.</div>}
-      </div>
-    </section>
+    <div className="records">
+      <section className="section">
+        <div className="section-head"><h2>Анхаарах</h2><span className="section-note">{attention.length}</span></div>
+        {attention.length ? renderList(attention) : <div className="empty"><Bell size={20} /><span>Анхаарах зүйл алга.</span></div>}
+      </section>
+      <section className="section">
+        <div className="section-head"><h2>Сүүлийн үйлдэл</h2></div>
+        {recent.length ? renderList(recent) : <div className="empty"><Bell size={20} /><span>Шинэ мэдэгдэл алга.</span></div>}
+      </section>
+    </div>
   )
 }

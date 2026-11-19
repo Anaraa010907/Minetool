@@ -1,12 +1,12 @@
 {
-  "name": "MineTool Manager",
+  "name": "MineTool",
   "short_name": "MineTool",
   "description": "Уурхайн багаж хэрэгслийн бүртгэл, олголтын систем",
   "lang": "mn",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f6f8",
-  "theme_color": "#142a3c",
+  "background_color": "#e3e7eb",
+  "theme_color": "#1f252c",
   "icons": [
     {
       "src": "/tool-icon.svg",
